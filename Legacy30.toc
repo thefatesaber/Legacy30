@@ -1,0 +1,19 @@
+## Interface: 110002
+## Version: 1.0.0
+## Title: Legacy30 - Dungeon Speedrun Timer
+## Notes: Original speedrun timer for legacy dungeons with validation
+## Author: YourName
+## SavedVariables: Legacy30DB
+## OptionalDeps: Ace3, AllTheThings
+## X-Embeds: Ace3
+
+libs.xml
+widgets.xml
+
+Core.lua
+Settings.lua
+Events.lua
+Network.lua
+Commands.lua
+Validation.lua
+ItemDatabase.lua
