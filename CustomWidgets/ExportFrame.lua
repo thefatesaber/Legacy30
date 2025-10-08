@@ -35,7 +35,7 @@ function ExportWidget:Create()
     
     -- Title - SET FONT BEFORE TEXT!
     frame.title = frame.titleBar:CreateFontString(nil, "OVERLAY")
-    frame.title:SetFont("Fonts\\FRIZQT__.TTF", 16, "OUTLINE")  -- SET FONT FIRST!
+    frame.title:SetFont("Fonts\\FRIZQT__.TTF", 16, "OUTLINE")
     frame.title:SetPoint("CENTER")
     frame.title:SetText("Export Data")
     
@@ -64,7 +64,7 @@ function ExportWidget:Create()
         editBox:SetMultiLine(true)
         editBox:SetAutoFocus(false)
         editBox:SetMaxLetters(0)
-        editBox:SetFont("Fonts\\FRIZQT__.TTF", 11)
+        editBox:SetFont("Fonts\\FRIZQT__.TTF", 11, "")  -- Fixed: added flags parameter
         
         -- Create a child frame for the scroll content
         local contentFrame = CreateFrame("Frame", nil, scrollFrame)
@@ -108,9 +108,9 @@ function ExportWidget:Create()
         end
     end)
     
-    -- Character count
+    -- Character count - SET FONT BEFORE TEXT!
     frame.charCount = frame:CreateFontString(nil, "OVERLAY")
-    frame.charCount:SetFont("Fonts\\FRIZQT__.TTF", 11)
+    frame.charCount:SetFont("Fonts\\FRIZQT__.TTF", 11, "")  -- Fixed: added flags parameter
     frame.charCount:SetPoint("BOTTOMLEFT", 15, 15)
     frame.charCount:SetTextColor(0.7, 0.7, 0.7, 1)
     frame.charCount:SetText("0 characters")
