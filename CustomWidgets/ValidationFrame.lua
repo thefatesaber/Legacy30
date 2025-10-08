@@ -50,11 +50,11 @@ function ValidationWidget:Create()
         frame:Hide()
     end)
     
-    -- Title
+    -- Title - SET FONT BEFORE TEXT!
     frame.title = frame:CreateFontString(nil, "OVERLAY")
+    frame.title:SetFont(GetFont(16))  -- MOVED BEFORE SetText
     frame.title:SetPoint("TOP", 0, -15)
     frame.title:SetText("Gear Validation Status")
-    frame.title:SetFont(GetFont(16))
     
     -- Player tabs
     frame.tabs = CreateFrame("Frame", nil, frame)
@@ -73,21 +73,21 @@ function ValidationWidget:Create()
     frame.contentChild:SetSize(540, 1)
     frame.content:SetScrollChild(frame.contentChild)
     
-    -- Player info display
+    -- Player info display - SET FONT BEFORE TEXT!
     frame.playerName = frame.contentChild:CreateFontString(nil, "OVERLAY")
+    frame.playerName:SetFont(GetFont(13))  -- MOVED BEFORE SetText
     frame.playerName:SetPoint("TOPLEFT", 10, -10)
     frame.playerName:SetText("Player: Unknown")
-    frame.playerName:SetFont(GetFont(13))
     
     frame.playerLevel = frame.contentChild:CreateFontString(nil, "OVERLAY")
+    frame.playerLevel:SetFont(GetFont(13))  -- MOVED BEFORE SetText
     frame.playerLevel:SetPoint("TOPLEFT", frame.playerName, "BOTTOMLEFT", 0, -5)
     frame.playerLevel:SetText("Level: --")
-    frame.playerLevel:SetFont(GetFont(13))
     
     frame.validationStatus = frame.contentChild:CreateFontString(nil, "OVERLAY")
+    frame.validationStatus:SetFont(GetFont(13))  -- MOVED BEFORE SetText
     frame.validationStatus:SetPoint("TOPLEFT", frame.playerLevel, "BOTTOMLEFT", 0, -5)
     frame.validationStatus:SetText("Status: Unknown")
-    frame.validationStatus:SetFont(GetFont(13))
     
     -- Equipment grid (4x4 = 16 slots)
     frame.equipmentSlots = {}

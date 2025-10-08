@@ -33,7 +33,9 @@ function ExportWidget:Create()
     frame.titleBar:SetHeight(30)
     frame.titleBar:EnableMouse(true)
     
-    frame.title = frame.titleBar:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    -- Title - SET FONT BEFORE TEXT!
+    frame.title = frame.titleBar:CreateFontString(nil, "OVERLAY")
+    frame.title:SetFont("Fonts\\FRIZQT__.TTF", 16, "OUTLINE")  -- SET FONT FIRST!
     frame.title:SetPoint("CENTER")
     frame.title:SetText("Export Data")
     
@@ -44,28 +46,55 @@ function ExportWidget:Create()
         frame:Hide()
     end)
     
-    -- Scroll frame for text
-    frame.scrollFrame = CreateFrame("ScrollFrame", nil, frame, "ScrollingEditBoxTemplate")
-    frame.scrollFrame:SetPoint("TOPLEFT", 15, -40)
-    frame.scrollFrame:SetPoint("BOTTOMRIGHT", -30, 50)
+    -- Try to use ScrollingEditBoxTemplate (modern WoW)
+    local scrollFrame = CreateFrame("ScrollFrame", nil, frame, "ScrollingEditBoxTemplate")
+    scrollFrame:SetPoint("TOPLEFT", 15, -40)
+    scrollFrame:SetPoint("BOTTOMRIGHT", -30, 50)
     
-    -- Edit box
-    frame.editBox = frame.scrollFrame.EditBox
-    frame.editBox:SetFontObject("GameFontNormalSmall")
-    frame.editBox:SetAutoFocus(false)
-    frame.editBox:SetMultiLine(true)
-    frame.editBox:SetMaxLetters(0)
-    frame.editBox:SetScript("OnEscapePressed", function()
+    frame.scrollFrame = scrollFrame
+    
+    -- Get or create the edit box
+    local editBox
+    if scrollFrame.EditBox then
+        -- Modern template provides EditBox
+        editBox = scrollFrame.EditBox
+    else
+        -- Fallback: create our own editBox for older versions
+        editBox = CreateFrame("EditBox", nil, scrollFrame)
+        editBox:SetMultiLine(true)
+        editBox:SetAutoFocus(false)
+        editBox:SetMaxLetters(0)
+        editBox:SetFont("Fonts\\FRIZQT__.TTF", 11)
+        
+        -- Create a child frame for the scroll content
+        local contentFrame = CreateFrame("Frame", nil, scrollFrame)
+        contentFrame:SetSize(scrollFrame:GetWidth(), 1)
+        scrollFrame:SetScrollChild(contentFrame)
+        
+        editBox:SetParent(contentFrame)
+        editBox:SetAllPoints(contentFrame)
+    end
+    
+    -- Configure edit box
+    editBox:SetFontObject("GameFontNormalSmall")
+    editBox:SetAutoFocus(false)
+    editBox:SetMultiLine(true)
+    editBox:SetMaxLetters(0)
+    editBox:SetScript("OnEscapePressed", function()
         frame:Hide()
     end)
     
-    -- Scroll bar
-    frame.scrollBar = CreateFrame("EventFrame", nil, frame, "MinimalScrollBar")
-    frame.scrollBar:SetPoint("TOPRIGHT", -10, -40)
-    frame.scrollBar:SetPoint("BOTTOMRIGHT", -10, 50)
-    frame.scrollBar:SetHideIfUnscrollable(true)
+    frame.editBox = editBox
     
-    ScrollUtil.RegisterScrollBoxWithScrollBar(frame.scrollFrame.ScrollBox, frame.scrollBar)
+    -- Scroll bar (if ScrollBox exists - modern API)
+    if scrollFrame.ScrollBox then
+        frame.scrollBar = CreateFrame("EventFrame", nil, frame, "MinimalScrollBar")
+        frame.scrollBar:SetPoint("TOPRIGHT", -10, -40)
+        frame.scrollBar:SetPoint("BOTTOMRIGHT", -10, 50)
+        frame.scrollBar:SetHideIfUnscrollable(true)
+        
+        ScrollUtil.RegisterScrollBoxWithScrollBar(scrollFrame.ScrollBox, frame.scrollBar)
+    end
     
     -- Copy button
     frame.copyBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
@@ -73,21 +102,29 @@ function ExportWidget:Create()
     frame.copyBtn:SetSize(150, 30)
     frame.copyBtn:SetText("Select All")
     frame.copyBtn:SetScript("OnClick", function()
-        frame.editBox:HighlightText()
-        frame.editBox:SetFocus()
+        if frame.editBox then
+            frame.editBox:HighlightText()
+            frame.editBox:SetFocus()
+        end
     end)
     
     -- Character count
-    frame.charCount = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    frame.charCount = frame:CreateFontString(nil, "OVERLAY")
+    frame.charCount:SetFont("Fonts\\FRIZQT__.TTF", 11)
     frame.charCount:SetPoint("BOTTOMLEFT", 15, 15)
-    frame.charCount:SetText("0 characters")
     frame.charCount:SetTextColor(0.7, 0.7, 0.7, 1)
+    frame.charCount:SetText("0 characters")
     
     return frame
 end
 
 -- Show data in export window
 function ExportWidget:ShowData(text)
+    if not self.frame.editBox then
+        print("Error: EditBox not initialized")
+        return
+    end
+    
     self.frame.editBox:SetText(text)
     
     local length = string.len(text)
@@ -98,8 +135,10 @@ function ExportWidget:ShowData(text)
     self.frame:Show()
     
     C_Timer.After(0.1, function()
-        self.frame.editBox:HighlightText()
-        self.frame.editBox:SetFocus()
+        if self.frame.editBox then
+            self.frame.editBox:HighlightText()
+            self.frame.editBox:SetFocus()
+        end
     end)
 end
 

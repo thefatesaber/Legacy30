@@ -43,31 +43,31 @@ function CompletionWidget:Create()
         frame:Hide()
     end)
     
-    -- Title
+    -- Title - SET FONT BEFORE TEXT!
     frame.title = frame:CreateFontString(nil, "OVERLAY")
+    frame.title:SetFont(GetFont(28))  -- MOVED BEFORE SetText
     frame.title:SetPoint("TOP", 0, -30)
-    frame.title:SetText("Run Complete!")
-    frame.title:SetFont(GetFont(28))
     frame.title:SetTextColor(0, 1, 0.4, 1)
+    frame.title:SetText("Run Complete!")
     
-    -- Dungeon name
+    -- Dungeon name - SET FONT BEFORE TEXT!
     frame.dungeonName = frame:CreateFontString(nil, "OVERLAY")
+    frame.dungeonName:SetFont(GetFont(18))  -- MOVED BEFORE SetText
     frame.dungeonName:SetPoint("TOP", 0, -65)
     frame.dungeonName:SetText("")
-    frame.dungeonName:SetFont(GetFont(18))
     
-    -- Time display
+    -- Time display - SET FONT BEFORE TEXT!
     frame.timeText = frame:CreateFontString(nil, "OVERLAY")
+    frame.timeText:SetFont(GetFont(42))  -- MOVED BEFORE SetText
     frame.timeText:SetPoint("CENTER", 0, 20)
-    frame.timeText:SetText("00:00")
-    frame.timeText:SetFont(GetFont(42))
     frame.timeText:SetTextColor(0.65, 0.54, 0.96, 1)
+    frame.timeText:SetText("00:00")
     
-    -- Best time comparison
+    -- Best time comparison - SET FONT BEFORE TEXT!
     frame.comparisonText = frame:CreateFontString(nil, "OVERLAY")
+    frame.comparisonText:SetFont(GetFont(14))  -- MOVED BEFORE SetText
     frame.comparisonText:SetPoint("TOP", frame.timeText, "BOTTOM", 0, -10)
     frame.comparisonText:SetText("")
-    frame.comparisonText:SetFont(GetFont(14))
     
     -- Stats container
     frame.statsFrame = CreateFrame("Frame", nil, frame)

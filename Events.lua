@@ -1,192 +1,225 @@
--- Event handling system for Legacy30
-local _, ns = ...
+-- Events.lua
+-- Event handlers for Legacy30 dungeon timer
+
+local ADDON_NAME, ns = ...
 local L30 = ns.Core
+local addon = L30.Addon
 
--- Track defeated bosses
-ns.DefeatedBosses = {}
+-- Track instance state
+local instanceState = {
+    currentInstance = nil,
+    inDungeon = false,
+    timerActive = false,
+    lastZone = nil
+}
 
--- Player enters world
-function L30.Addon:PLAYER_ENTERING_WORLD(_, isLogin, isReload)
-    self:OnZoneTransition()
+-- Check if in a valid legacy dungeon
+local function IsInLegacyDungeon()
+    local name, instanceType, difficultyID, _, maxPlayers = GetInstanceInfo()
     
-    if isLogin or isReload then
-        ns.ItemDatabase = ns.ItemDatabase or {}
-    end
-end
-
--- Instance entry detection
-function L30:OnInstanceEntry()
-    if self:CheckInstanceStatus() and not ns.TimerUI.sessionData.running then
-        if ObjectiveTrackerFrame and ObjectiveTrackerFrame:IsVisible() then
-            ObjectiveTrackerFrame:Hide()
-        end
-        
-        ns.DefeatedBosses = {}
-        self:RequestValidation()
-    end
-end
-
--- Boss defeat event
-function L30:OnBossDefeat(_, defeatedBossID)
-    ns.DefeatedBosses[defeatedBossID] = true
-    self:OnBossProgress()
-end
-
--- Get death status from scenario criteria
-local function FindBossDeathInCriteria(bossName)
-    bossName = strlower(bossName)
-    
-    local function CheckCriteriaMatch(criteriaData)
-        local criteriaName = strlower(criteriaData[1])
-        if string.match(criteriaName, bossName) then
-            return criteriaData[3]
-        end
+    -- Check if it's a dungeon/raid instance
+    if instanceType ~= "party" and instanceType ~= "raid" then
+        return false
     end
     
-    local normalCount = select(3, C_Scenario.GetStepInfo())
-    local bonusSteps = C_Scenario.GetBonusSteps()
-    
-    if bonusSteps and #bonusSteps > 0 then
-        for _, stepID in ipairs(bonusSteps) do
-            local bonusCount = select(3, C_Scenario.GetStepInfo(stepID))
-            for i = 1, bonusCount do
-                local match = CheckCriteriaMatch({
-                    C_Scenario.GetCriteriaInfoByStep(stepID, i)
-                })
-                if match ~= nil then
-                    return match
-                end
+    -- Check if the dungeon is in our database
+    if ns.Dungeons then
+        for dungeonID, dungeonData in pairs(ns.Dungeons) do
+            if dungeonData.name == name then
+                return true, dungeonID, dungeonData
             end
         end
     end
     
-    for i = 1, normalCount do
-        local match = CheckCriteriaMatch({
-            C_Scenario.GetCriteriaInfo(i)
-        })
-        if match ~= nil then
-            return match
+    return false
+end
+
+-- Boss progress update handler
+function addon:OnBossProgress(event, ...)
+    if not instanceState.timerActive then return end
+    
+    -- Update timer UI if available
+    if ns.TimerUI and ns.TimerUI.OnCriteriaUpdate then
+        ns.TimerUI:OnCriteriaUpdate()
+    end
+    
+    L30:InfoMessage("Boss progress updated")
+end
+
+-- Boss defeated handler
+function addon:OnBossDefeat(event, ...)
+    local encounterID, encounterName = ...
+    
+    if not instanceState.timerActive then return end
+    
+    L30:InfoMessage("Boss defeated: %s", encounterName or "Unknown")
+    
+    -- Notify timer UI
+    if ns.TimerUI and ns.TimerUI.OnBossKill then
+        ns.TimerUI:OnBossKill(encounterID, encounterName)
+    end
+    
+    -- Save boss-specific record
+    if instanceState.currentInstance then
+        local elapsedTime = ns.TimerUI and ns.TimerUI:GetElapsedTime() or 0
+        if elapsedTime > 0 then
+            L30:SaveRecord(instanceState.currentInstance, encounterID, elapsedTime)
         end
     end
-    
-    return true
 end
 
--- Retrieve boss information
-function L30:GetBossData(dungeonID)
-    local sessionData = ns.TimerUI.sessionData
-    dungeonID = dungeonID or sessionData.dungeonID
-    
-    local encounters = ns.Dungeons[dungeonID].encounters
-    local bossData = {}
-    
-    for _, encounter in ipairs(encounters) do
-        local bossName = EJ_GetEncounterInfo(encounter.journal)
-        local isDefeated = ns.DefeatedBosses[encounter.difficulty] or
-                          C_EncounterJournal.IsEncounterComplete(encounter.journal)
-        
-        if isDefeated then
-            isDefeated = FindBossDeathInCriteria(bossName)
-        end
-        
-        table.insert(bossData, {
-            name = bossName,
-            encounterID = encounter.difficulty,
-            defeated = isDefeated,
-            timeElapsed = (GetServerTime() - (sessionData.startTimestamp or GetServerTime()))
-        })
-    end
-    
-    return bossData, #encounters
-end
-
--- Update boss progress
-function L30:OnBossProgress()
-    local timerFrame = ns.TimerUI
-    if timerFrame.sessionData.running then
-        timerFrame:RefreshBosses(self:GetBossData())
-    end
-end
-
--- Attempt to start timer
-function L30:AttemptTimerStart(startTimestamp)
-    if ns.WaitingForCombat and self:CheckInstanceStatus() then
-        startTimestamp = tonumber(startTimestamp) or GetServerTime()
-        
-        local timerFrame = ns.TimerUI
-        local dungeonName, _, _, difficulty, _, _, _, dungeonID = GetInstanceInfo()
-        
-        if not dungeonName then return end
-        
-        local bossData, totalBosses = self:GetBossData(dungeonID)
-        local bossRecords = {}
-        
-        for i = 1, totalBosses do
-            bossRecords[i] = self:GetBestRecord(dungeonID, i)
-        end
-        
-        local sessionInfo = {
-            dungeonName = dungeonName,
-            difficulty = difficulty,
-            startTimestamp = startTimestamp,
-            bestTime = self:GetBestRecord(dungeonID),
-            totalBosses = totalBosses,
-            bossData = bossData,
-            dungeonID = dungeonID,
-            bossRecords = bossRecords
-        }
-        
-        timerFrame:Initialize(sessionInfo)
-        self:BroadcastMessage(ns.Protocol.TIMER_START, startTimestamp)
-        ns.WaitingForCombat = false
-    end
-end
-
--- Check if in valid dungeon
-function L30:CheckInstanceStatus()
+-- Instance entry handler
+function addon:OnInstanceEntry(event, ...)
     local inInstance, instanceType = IsInInstance()
-    local isDungeon = inInstance and instanceType == "party"
     
-    if isDungeon then
-        ns.TimerUI:Show()
-    else
-        ns.TimerUI:Hide()
+    if not inInstance then
+        -- Left instance
+        if instanceState.inDungeon then
+            L30:InfoMessage("Left dungeon")
+            instanceState.inDungeon = false
+            instanceState.timerActive = false
+            
+            -- Hide timer UI
+            if ns.TimerUI and ns.TimerUI.Hide then
+                ns.TimerUI:Hide()
+            end
+        end
+        return
     end
     
-    return isDungeon
+    -- Check if in a legacy dungeon
+    local isLegacy, dungeonID, dungeonData = IsInLegacyDungeon()
+    
+    if isLegacy then
+        instanceState.inDungeon = true
+        instanceState.currentInstance = dungeonID
+        
+        L30:InfoMessage("Entered: %s", dungeonData.name or "Legacy Dungeon")
+        
+        -- Show timer UI
+        if ns.TimerUI and ns.TimerUI.Show then
+            ns.TimerUI:Show(dungeonID, dungeonData)
+        end
+    end
+end
+
+-- Group roster update handler
+function addon:OnGroupUpdate(event, ...)
+    -- Check if still in a valid group
+    if IsInGroup() then
+        if ns.Network and ns.Network.OnGroupUpdate then
+            ns.Network:OnGroupUpdate()
+        end
+    else
+        -- Solo now, may need to adjust UI
+        if ns.TimerUI and ns.TimerUI.OnSolo then
+            ns.TimerUI:OnSolo()
+        end
+    end
 end
 
 -- Zone transition handler
-function L30:OnZoneTransition()
-    local isValid = self:CheckInstanceStatus()
-    return isValid
-end
-
--- Run completion
-function L30:OnRunComplete(sessionInfo, totalTime)
-    self:SaveRecord(sessionInfo.dungeonID, nil, totalTime, sessionInfo)
-end
-
--- Boss defeat timing
-function L30:OnBossTiming(dungeonID, elapsedTime, bossNumber)
-    self:SaveRecord(dungeonID, bossNumber, elapsedTime)
-end
-
--- Combat log events
-function L30:OnCombatEvent()
-    local combatData = { CombatLogGetCurrentEventInfo() }
+function addon:OnZoneTransition(event, ...)
+    local newZone = GetZoneText()
     
-    if combatData[2] == "UNIT_DIED" then
-        local isEnemy = not (bit.band(
-            combatData[10], 
-            COMBATLOG_OBJECT_REACTION_FRIENDLY
-        ) > 0)
+    if newZone ~= instanceState.lastZone then
+        instanceState.lastZone = newZone
         
-        if isEnemy then
-            self:BroadcastMessage(
-                ns.Protocol.CREATURE_SYNC, 
-                combatData[8]
-            )
+        -- Recheck if in dungeon
+        self:OnInstanceEntry(event)
+    end
+end
+
+-- Combat log event handler
+function addon:OnCombatEvent(event, ...)
+    local timestamp, subevent, _, sourceGUID, sourceName, sourceFlags, _, 
+          destGUID, destName, destFlags = CombatLogGetCurrentEventInfo()
+    
+    -- Track important combat events for validation
+    if subevent == "SPELL_CAST_SUCCESS" then
+        -- Track player abilities for validation
+        if sourceGUID == UnitGUID("player") then
+            if ns.Validation and ns.Validation.TrackAbility then
+                local spellID, spellName = select(12, CombatLogGetCurrentEventInfo())
+                ns.Validation:TrackAbility(spellID, timestamp)
+            end
+        end
+    elseif subevent == "UNIT_DIED" then
+        -- Track boss deaths
+        if destGUID and destFlags then
+            local unitType = bit.band(destFlags, COMBATLOG_OBJECT_TYPE_MASK)
+            if unitType == COMBATLOG_OBJECT_TYPE_NPC then
+                -- Could be a boss
+                if ns.TimerUI and ns.TimerUI.OnUnitDied then
+                    ns.TimerUI:OnUnitDied(destGUID, destName)
+                end
+            end
         end
     end
+end
+
+-- Player entering world handler
+function addon:OnPlayerEntering(event, ...)
+    local isLogin, isReload = ...
+    
+    if isLogin or isReload then
+        L30:InfoMessage("Welcome back!")
+        
+        -- Apply saved settings
+        L30:ApplyUISettings()
+        
+        -- Check if in instance
+        self:OnInstanceEntry(event)
+    end
+end
+
+-- Utility: Get current instance state
+function L30:GetInstanceState()
+    return instanceState
+end
+
+-- Utility: Check if timer is active
+function L30:IsTimerActive()
+    return instanceState.timerActive
+end
+
+-- Utility: Start timer manually
+function L30:StartTimer()
+    if not instanceState.inDungeon then
+        L30:ErrorMessage("Not in a dungeon")
+        return false
+    end
+    
+    instanceState.timerActive = true
+    
+    if ns.TimerUI and ns.TimerUI.StartTimer then
+        ns.TimerUI:StartTimer()
+    end
+    
+    L30:InfoMessage("Timer started")
+    return true
+end
+
+-- Utility: Stop timer manually
+function L30:StopTimer()
+    instanceState.timerActive = false
+    
+    if ns.TimerUI and ns.TimerUI.StopTimer then
+        ns.TimerUI:StopTimer()
+    end
+    
+    L30:InfoMessage("Timer stopped")
+    return true
+end
+
+-- Utility: Reset timer
+function L30:ResetTimer()
+    instanceState.timerActive = false
+    
+    if ns.TimerUI and ns.TimerUI.ResetTimer then
+        ns.TimerUI:ResetTimer()
+    end
+    
+    L30:InfoMessage("Timer reset")
+    return true
 end

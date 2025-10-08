@@ -78,7 +78,14 @@ function L30.Addon:OnInitialize()
     self:RegisterChatCommand("l30", "ProcessCommand")
     self:RegisterChatCommand("rl", C_UI.Reload)
     
-    -- Register game events
+    -- DON'T register events here - they will be registered in OnEnable after all files load
+    
+    L30:InfoMessage("Legacy30 v%s loaded", ns.Version)
+end
+
+-- Enable addon - called after all files are loaded
+function L30.Addon:OnEnable()
+    -- NOW register events (after Events.lua has loaded and defined the handlers)
     self:RegisterEvent("SCENARIO_CRITERIA_UPDATE", "OnBossProgress")
     self:RegisterEvent("BOSS_KILL", "OnBossDefeat")
     self:RegisterEvent("RAID_INSTANCE_WELCOME", "OnInstanceEntry")
@@ -88,12 +95,23 @@ function L30.Addon:OnInitialize()
     self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", "OnCombatEvent")
     self:RegisterEvent("PLAYER_ENTERING_WORLD")
     
+    -- Register communication channels
+    for _, channel in pairs(ns.Protocol) do
+        self:RegisterComm(channel)
+    end
+    
     -- Initialize item database if the module exists
     if ns.ItemDB and ns.ItemDB.Initialize then
         ns.ItemDB:Initialize()
     end
     
-    L30:InfoMessage("Legacy30 v%s loaded", ns.Version)
+    -- Apply UI settings
+    L30:ApplyUISettings()
+    
+    -- Initialize network module if available
+    if ns.Network and ns.Network.Initialize then
+        ns.Network:Initialize()
+    end
 end
 
 -- Retrieve best time for a dungeon
@@ -169,7 +187,11 @@ function L30:SaveRecord(dungeonID, bossNumber, timeSeconds, completeData)
             records[dungeonID].fullRun = timeSeconds
             records[dungeonID].recordID = completeData.sessionID
             
-            L30:InfoMessage("New record! Completed in %s", ns.Utils.FormatTime(timeSeconds))
+            if ns.Utils and ns.Utils.FormatTime then
+                L30:InfoMessage("New record! Completed in %s", ns.Utils.FormatTime(timeSeconds))
+            else
+                L30:InfoMessage("New record! Completed in %d seconds", timeSeconds)
+            end
         end
         
         -- Save detailed history
@@ -229,22 +251,6 @@ function L30:SaveRecord(dungeonID, bossNumber, timeSeconds, completeData)
     end
 end
 
--- Enable communication channels
-function L30.Addon:OnEnable()
-    -- Register communication channels
-    for _, channel in pairs(ns.Protocol) do
-        self:RegisterComm(channel)
-    end
-    
-    -- Apply UI settings
-    L30:ApplyUISettings()
-    
-    -- Initialize network module if available
-    if ns.Network and ns.Network.Initialize then
-        ns.Network:Initialize()
-    end
-end
-
 -- Apply UI preferences
 function L30:ApplyUISettings()
     if not ns.TimerUI then return end
@@ -255,6 +261,33 @@ function L30:ApplyUISettings()
     if prefs and timerFrame.ApplySettings then
         timerFrame:ApplySettings(prefs.uiScale, prefs.position)
     end
+end
+
+-- Utility: Send network message (wrapper for Addon methods)
+function L30:BroadcastMessage(channel, payload, whisperTarget)
+    if not self.Addon.SendCommMessage then return end
+    
+    local Serializer = LibStub("LibSerialize")
+    local Compressor = LibStub("LibDeflate")
+    
+    local serializedData = Serializer:Serialize(payload)
+    local compressedData = Compressor:CompressDeflate(serializedData)
+    local encodedData = Compressor:EncodeForWoWAddonChannel(compressedData)
+    
+    local destination = whisperTarget and "WHISPER" or "PARTY"
+    
+    self.Addon:SendCommMessage(
+        channel,
+        encodedData,
+        destination,
+        whisperTarget,
+        "BULK"
+    )
+end
+
+-- Utility: Send network message (alias)
+function L30:SendNetworkMessage(channel, payload, whisperTarget)
+    self:BroadcastMessage(channel, payload, whisperTarget)
 end
 
 -- Export namespace for other modules
