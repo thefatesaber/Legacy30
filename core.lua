@@ -78,12 +78,33 @@ function L30.Addon:OnInitialize()
     self:RegisterChatCommand("l30", "ProcessCommand")
     self:RegisterChatCommand("rl", C_UI.Reload)
     
+    -- Verify Settings.lua data is loaded (but don't block if not)
+    if ns.Dungeons then
+        local dungeonCount = 0
+        for _ in pairs(ns.Dungeons) do
+            dungeonCount = dungeonCount + 1
+        end
+        L30:InfoMessage("Settings.lua: %d dungeons configured", dungeonCount)
+    else
+        L30:ErrorMessage("Warning: ns.Dungeons not loaded")
+    end
+    
+    if ns.MobThresholds then
+        local thresholdCount = 0
+        for _ in pairs(ns.MobThresholds) do
+            thresholdCount = thresholdCount + 1
+        end
+        L30:InfoMessage("Mob thresholds: %d dungeons", thresholdCount)
+    else
+        L30:ErrorMessage("Warning: ns.MobThresholds not loaded")
+    end
+    
     -- Initialize item database if the module exists
     if ns.ItemDB and ns.ItemDB.Initialize then
         ns.ItemDB:Initialize()
     end
     
-    L30:InfoMessage("Legacy30 v%s loaded", ns.Version)
+    L30:InfoMessage("Legacy30 v%s initialized", ns.Version)
 end
 
 -- Enable addon
@@ -93,11 +114,18 @@ function L30.Addon:OnEnable()
         self:RegisterComm(channel)
     end
     
-    -- NOTE: Event registration is handled by Events.lua
-    -- Events.lua defines the event handlers and registers them
-    
-    -- Apply UI settings
+    -- Apply UI settings and ensure timer is created
     L30:ApplyUISettings()
+    
+    -- Make sure timer frame exists and is initialized
+    if ns.TimerUI and ns.TimerUI.frame then
+        L30:InfoMessage("Timer frame initialized")
+    else
+        L30:ErrorMessage("Timer frame failed to initialize!")
+    end
+    
+    -- Check if we're already in a dungeon
+    L30:CheckZone()
     
     -- Initialize network module if available
     if ns.Network and ns.Network.Initialize then
@@ -251,6 +279,9 @@ function L30:ApplyUISettings()
     
     if prefs and timerFrame.ApplySettings then
         timerFrame:ApplySettings(prefs.uiScale, prefs.position)
+    else
+        -- Apply defaults if preferences don't exist
+        timerFrame:ApplySettings(1, { "RIGHT" })
     end
 end
 

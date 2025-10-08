@@ -146,7 +146,13 @@ function TimerWidget:Initialize(sessionInfo)
         self.frame.bestText:SetText("Best: --:--")
     end
     
+    -- Force immediate update
     self:UpdateDisplay()
+    
+    -- Log initialization for debugging
+    if ns.Core then
+        ns.Core:InfoMessage("Timer initialized: %d/%d bosses", 0, sessionInfo.totalBosses)
+    end
 end
 
 -- Generate unique session ID
@@ -165,8 +171,19 @@ function TimerWidget:UpdateDisplay()
     local elapsed = GetServerTime() - self.sessionData.startTimestamp
     self.frame.timerText:SetText(ns.FormatTime(elapsed))
     
+    -- Get mob threshold from Settings.lua
     local dungeonID = self.sessionData.dungeonID
-    local maxMobs = ns.MobThresholds and ns.MobThresholds[dungeonID] or 100
+    local maxMobs = 100 -- Default fallback
+    
+    if ns.MobThresholds and ns.MobThresholds[dungeonID] then
+        maxMobs = ns.MobThresholds[dungeonID]
+    else
+        -- Warn if threshold not found
+        if ns.Core and dungeonID then
+            ns.Core:ErrorMessage("Mob threshold not found for dungeon ID %d", dungeonID)
+        end
+    end
+    
     local percentage = math.min(100, (self.sessionData.mobCount / maxMobs) * 100)
     
     self.frame.mobText:SetText(string.format("Mobs: %d (%.0f%%)", 
@@ -174,10 +191,13 @@ function TimerWidget:UpdateDisplay()
         percentage
     ))
     
+    -- Count defeated bosses from boss data
     local bossesKilled = 0
-    for _, boss in ipairs(self.sessionData.bossData) do
-        if boss.defeated then
-            bossesKilled = bossesKilled + 1
+    if self.sessionData.bossData then
+        for _, boss in ipairs(self.sessionData.bossData) do
+            if boss.defeated then
+                bossesKilled = bossesKilled + 1
+            end
         end
     end
     
@@ -186,6 +206,7 @@ function TimerWidget:UpdateDisplay()
         self.sessionData.totalBosses
     ))
     
+    -- Check for completion
     if bossesKilled >= self.sessionData.totalBosses and self.sessionData.totalBosses > 0 then
         self:CompleteRun(elapsed)
     end
@@ -261,9 +282,19 @@ end
 function TimerWidget:ApplySettings(scale, position)
     self.frame:SetScale(scale or 1)
     
-    if position and #position > 0 then
+    if position and type(position) == "table" and #position > 0 then
         self.frame:ClearAllPoints()
-        self.frame:SetPoint(unpack(position))
+        
+        -- Handle position safely
+        -- Position format: {point, relativeTo, relativePoint, x, y}
+        -- But we only use simple anchoring: {point}
+        local point = position[1] or "RIGHT"
+        
+        -- Simple anchoring to screen edge
+        self.frame:SetPoint(point, UIParent, point, 0, 0)
+    else
+        -- Default position
+        self.frame:SetPoint("RIGHT", UIParent, "RIGHT", -20, 0)
     end
 end
 
@@ -271,7 +302,9 @@ end
 function TimerWidget:SavePosition()
     local point, _, relativePoint, x, y = self.frame:GetPoint()
     if ns.Core and ns.Core.Addon and ns.Core.Addon.database then
-        ns.Core.Addon.database.preferences.position = { point, relativePoint, x, y }
+        -- Save simple format: just the anchor point
+        ns.Core.Addon.database.preferences.position = { point }
+        ns.Core:InfoMessage("Timer position saved: %s", point)
     end
 end
 

@@ -121,15 +121,26 @@ end
 
 function L30:RequestValidation(dungeonID, wantDetails, targetPlayer)
     dungeonID = dungeonID or select(8, GetInstanceInfo())
-    local dungeonInfo = ns.Dungeons[dungeonID]
+    local dungeonInfo = ns.Dungeons and ns.Dungeons[dungeonID]
     
     if dungeonInfo then
         local msgType = wantDetails and "REQUEST_DETAILS" or "REQUEST"
-        self:SendNetworkMessage(
-            ns.Protocol.GEAR_CHECK,
-            { type = msgType, expansion = dungeonInfo.expansion },
-            targetPlayer
-        )
+        
+        -- If in a group, send network request
+        if IsInGroup() then
+            self:SendNetworkMessage(
+                ns.Protocol.GEAR_CHECK,
+                { type = msgType, expansion = dungeonInfo.expansion },
+                targetPlayer
+            )
+        else
+            -- If solo, validate locally immediately
+            local playerName = UnitName("player")
+            local status = self:GetValidationStatus(dungeonInfo.expansion)
+            ns.ValidationStates[playerName] = status
+            L30:InfoMessage("Solo validation complete: %s", status)
+            self:EvaluateStartConditions()
+        end
     end
 end
 
@@ -137,7 +148,9 @@ function L30:ProcessValidationResponse(playerName, validationStatus)
     ns.ValidationStates[playerName] = validationStatus
     
     local ui = ns.ValidationUI
-    ui:UpdatePlayerStatus(playerName, validationStatus)
+    if ui and ui.UpdatePlayerStatus then
+        ui:UpdatePlayerStatus(playerName, validationStatus)
+    end
     
     self:EvaluateStartConditions()
 end
@@ -149,7 +162,8 @@ function L30:EvaluateStartConditions()
         return true
     end
     
-    local groupSize = GetNumGroupMembers()
+    -- Get actual group size (counting solo player as 1)
+    local groupSize = IsInGroup() and GetNumGroupMembers() or 1
     local allValid = true
     
     for _, playerStatus in pairs(ns.ValidationStates) do

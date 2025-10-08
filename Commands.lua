@@ -13,15 +13,45 @@ function L30.Addon:ProcessCommand(input)
     local cmd = args[1]
     
     if cmd == "timer" then
-        self:HandleTimerCommand(args)
+        L30:HandleTimerCommand(args)
+        
+    elseif cmd == "show" then
+        -- Manual command to show and start timer - ONLY for configured dungeons
+        local inInstance, instanceType = IsInInstance()
+        if inInstance and instanceType == "party" then
+            local dungeonName, _, _, _, _, _, _, dungeonID = GetInstanceInfo()
+            
+            -- Check if dungeon is configured
+            if ns.Dungeons and ns.Dungeons[dungeonID] then
+                L30:InfoMessage("Forcing timer for: %s (ID: %d)", dungeonName, dungeonID)
+                
+                -- Force show timer frame
+                if ns.TimerUI and ns.TimerUI.frame then
+                    ns.TimerUI.frame:Show()
+                    L30:InfoMessage("Timer frame is now visible")
+                else
+                    L30:ErrorMessage("Timer frame doesn't exist!")
+                end
+                
+                -- Start timer
+                L30:AttemptTimerStart(GetServerTime())
+            else
+                L30:ErrorMessage("Dungeon ID %d is NOT configured in Settings.lua", dungeonID)
+                L30:InfoMessage("This dungeon is not supported by Legacy30")
+            end
+        else
+            L30:ErrorMessage("You must be in a dungeon to use this command")
+        end
         
     elseif cmd == "start" then
         ns.PlayerReady = true
-        self:InfoMessage("Ready status: Active")
-        self:RegisterEvent("UNIT_COMBAT", "AttemptTimerStart")
+        ns.WaitingForCombat = true
+        L30:InfoMessage("Ready status: Active - Timer will start on first combat")
+        -- Don't register event here - Events.lua will handle combat detection
+        -- Just set the flag for AttemptTimerStart to check
         
     elseif cmd == "help" or not cmd then
-        self:ShowHelpText()
+        L30:ShowHelpText()  -- Changed from self: to L30:
         
     elseif cmd == "export" then
         if C_AddOns.IsAddOnLoaded("AllTheThings") then
@@ -30,26 +60,26 @@ function L30.Addon:ProcessCommand(input)
             local craft = args[4] == "yes"
             local pvp = args[5] == "yes"
             
-            self:InfoMessage("Extracting data, please wait...")
+            L30:InfoMessage("Extracting data, please wait...")  -- Changed from self: to L30:
             RunNextFrame(function()
-                self:ExportDatabase(instance, world, craft, pvp)
+                L30:ExportDatabase(instance, world, craft, pvp)  -- Changed from self: to L30:
             end)
         else
-            self:ErrorMessage("AllTheThings addon required for export")
+            L30:ErrorMessage("AllTheThings addon required for export")  -- Changed from self: to L30:
         end
         
     elseif cmd == "search" then
-        self:SearchItemDatabase(ns.ItemDatabase)
+        L30:SearchItemDatabase(ns.ItemDatabase)  -- Changed from self: to L30:
         
     elseif cmd == "validation" then
         ns.ValidationUI.window:Show()
         
     elseif cmd == "instances" then
-        self:ExportInstanceData()
+        L30:ExportInstanceData()  -- Changed from self: to L30:
         
     else
-        self:ErrorMessage("Unknown command: %s", cmd)
-        self:ShowHelpText()
+        L30:ErrorMessage("Unknown command: %s", cmd)  -- Changed from self: to L30:
+        L30:ShowHelpText()  -- Changed from self: to L30:
     end
 end
 
@@ -67,13 +97,13 @@ function L30:HandleTimerCommand(args)
             self:ErrorMessage("%s is not a valid scale value", args[3] or "nil")
             return
         end
-        self.database.preferences.uiScale = scaleValue / 100
+        self.Addon.database.preferences.uiScale = scaleValue / 100
         self:InfoMessage("Timer scale: %d%%", scaleValue)
         self:ApplyUISettings()
         
     elseif subCmd == "reset" then
-        self.database.preferences = {
-            position = { "RIGHT" },
+        self.Addon.database.preferences = {
+            position = { "RIGHT" },  -- Simple format: just anchor point
             uiScale = 1
         }
         self:InfoMessage("Timer settings reset to defaults")
@@ -86,6 +116,7 @@ end
 
 function L30:ShowHelpText()
     self:InfoMessage("=== Legacy30 Commands ===")
+    self:InfoMessage("/l30 show - Force show/start timer in current dungeon")
     self:InfoMessage("/l30 timer drag - Toggle timer drag mode")
     self:InfoMessage("/l30 timer scale <num> - Set timer scale (percentage)")
     self:InfoMessage("/l30 timer reset - Reset timer to defaults")
@@ -265,4 +296,9 @@ function L30:SerializeTable(tbl)
     end
     
     return result .. "}"
+end
+
+function L30:SearchItemDatabase(database)
+    -- Placeholder for item database search functionality
+    self:InfoMessage("Item database search not yet implemented")
 end
