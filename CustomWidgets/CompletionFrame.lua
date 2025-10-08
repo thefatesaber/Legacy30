@@ -130,7 +130,9 @@ function CompletionWidget:Display(data)
     
     self.frame:Show()
     
-    PlaySound(SOUNDKIT.RAID_BOSS_VICTORY)
+    -- Play victory sound (8959 = UI_RaidBossEmoteWarning, good victory sound)
+    -- Alternative sound IDs: 12867 (Level up), 888 (Quest complete), 3337 (PVP victory)
+    PlaySound(8959, "Master")
 end
 
 -- Update party member display
