@@ -12,8 +12,8 @@ widgets.xml
 
 Core.lua
 Settings.lua
+Sync.lua
 Events.lua
-Network.lua
 Commands.lua
 Validation.lua
 ItemDatabase.lua

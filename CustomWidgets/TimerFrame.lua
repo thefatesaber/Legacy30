@@ -36,6 +36,7 @@ local TimerWidget = {
         totalBosses = 0,
         mobCount = 0,
         mobList = {},
+        deathCount = 0,
         sessionID = nil
     }
 }
@@ -43,7 +44,7 @@ local TimerWidget = {
 -- Constructor
 function TimerWidget:Create()
     local frame = CreateFrame("Frame", "Legacy30TimerFrame", UIParent, "BackdropTemplate")
-    frame:SetSize(300, 180)
+    frame:SetSize(300, 200)  -- Increased height for death counter
     frame:SetPoint("RIGHT", -20, 0)
     frame:SetBackdrop({
         bgFile = "Interface/Tooltips/UI-Tooltip-Background",
@@ -85,6 +86,13 @@ function TimerWidget:Create()
     frame.bossText:SetFont(GetFont(13))
     frame.bossText:SetPoint("TOP", 0, -95)
     frame.bossText:SetText("Bosses: 0/0")
+    
+    -- Death counter - SET FONT BEFORE TEXT!
+    frame.deathText = frame:CreateFontString(nil, "OVERLAY")
+    frame.deathText:SetFont(GetFont(13))
+    frame.deathText:SetPoint("TOP", 0, -115)
+    frame.deathText:SetTextColor(1, 0.3, 0.3, 1) -- Red color for deaths
+    frame.deathText:SetText("Deaths: 0")
     
     -- Best time display - SET FONT BEFORE TEXT!
     frame.bestText = frame:CreateFontString(nil, "OVERLAY")
@@ -174,7 +182,9 @@ function TimerWidget:Initialize(sessionInfo)
         bossRecords = sessionInfo.bossRecords or {},
         mobCount = 0,
         mobList = {},
-        sessionID = self:GenerateSessionID()
+        deathCount = 0,  -- Initialize death counter
+        sessionID = self:GenerateSessionID(),
+        bossDataLogged = false  -- Flag to prevent duplicate log messages
     }
     
     self.frame.title:SetText(sessionInfo.dungeonName or "Dungeon Run")
@@ -225,10 +235,18 @@ function TimerWidget:UpdateDisplay()
     
     local percentage = math.min(100, (self.sessionData.mobCount / maxMobs) * 100)
     
-    self.frame.mobText:SetText(string.format("Mobs: %d (%.0f%%)", 
-        self.sessionData.mobCount, 
-        percentage
-    ))
+    -- Format mob counter display
+    if self.sessionData.mobCount >= maxMobs then
+        self.frame.mobText:SetText("Mobs: COMPLETE")
+        self.frame.mobText:SetTextColor(0, 1, 0, 1) -- Green for complete
+    else
+        self.frame.mobText:SetText(string.format("Mobs: %d / %d (%.0f%%)", 
+            self.sessionData.mobCount,
+            maxMobs,
+            percentage
+        ))
+        self.frame.mobText:SetTextColor(1, 0, 0, 1) -- Red for in progress
+    end
     
     -- Count defeated bosses from boss data
     local bossesKilled = 0
@@ -244,6 +262,9 @@ function TimerWidget:UpdateDisplay()
         bossesKilled, 
         self.sessionData.totalBosses
     ))
+    
+    -- Update death counter
+    self.frame.deathText:SetText(string.format("Deaths: %d", self.sessionData.deathCount))
     
     -- Check for completion
     if bossesKilled >= self.sessionData.totalBosses and self.sessionData.totalBosses > 0 then
@@ -277,6 +298,11 @@ function TimerWidget:IncrementCreatureCount(creatureGUID)
     
     self.sessionData.mobList[creatureGUID] = true
     self.sessionData.mobCount = self.sessionData.mobCount + 1
+end
+
+-- Increment death count
+function TimerWidget:IncrementDeathCount()
+    self.sessionData.deathCount = self.sessionData.deathCount + 1
 end
 
 -- Complete the run

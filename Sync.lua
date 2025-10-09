@@ -11,20 +11,13 @@ local LibDeflate = LibStub("LibDeflate")
 ns.Protocol = {
     CREATURE_SYNC = "L30_MOBKILL",
     TIMER_START = "L30_START",
-    BOSS_KILL = "L30_BOSS"
+    BOSS_KILL = "L30_BOSS",
+    DEATH_SYNC = "L30_DEATH"
 }
 
--- Register communication prefixes
-if L30.Addon then
-    for _, prefix in pairs(ns.Protocol) do
-        L30.Addon:RegisterComm(prefix, function(prefix, payload, distribution, sender)
-            L30:OnCommReceived(prefix, payload, distribution, sender)
-        end)
-    end
-end
-
--- Handle incoming messages
-function L30:OnCommReceived(prefix, payload, distribution, sender)
+-- IMPORTANT: Define OnCommReceived BEFORE registering it
+-- Handle incoming messages - MUST be on L30.Addon for AceComm
+function L30.Addon:OnCommReceived(prefix, payload, distribution, sender)
     -- Don't process messages from ourselves
     if sender == UnitName("player") then
         return
@@ -33,36 +26,47 @@ function L30:OnCommReceived(prefix, payload, distribution, sender)
     -- Decode the payload
     local decoded = LibDeflate:DecodeForWoWAddonChannel(payload)
     if not decoded then
-        self:ErrorMessage("Failed to decode message from %s", sender)
         return
     end
     
     -- Decompress the payload
     local decompressed = LibDeflate:DecompressDeflate(decoded)
     if not decompressed then
-        self:ErrorMessage("Failed to decompress message from %s", sender)
         return
     end
     
     -- Deserialize the data
     local success, data = LibSerialize:Deserialize(decompressed)
     if not success then
-        self:ErrorMessage("Failed to deserialize message from %s", sender)
         return
     end
     
-    -- Route to appropriate handler
+    -- Route to appropriate handler on L30 Core
     if prefix == ns.Protocol.CREATURE_SYNC then
-        self:OnSyncCreatureKill(data, sender)
+        L30:OnSyncCreatureKill(data, sender)
     elseif prefix == ns.Protocol.TIMER_START then
-        self:OnSyncTimerStart(data, sender)
+        L30:OnSyncTimerStart(data, sender)
     elseif prefix == ns.Protocol.BOSS_KILL then
-        self:OnSyncBossKill(data, sender)
+        L30:OnSyncBossKill(data, sender)
+    elseif prefix == ns.Protocol.DEATH_SYNC then
+        L30:OnSyncDeath(data, sender)
+    end
+end
+
+-- NOW register communication prefixes AFTER OnCommReceived is defined
+if L30.Addon then
+    for _, prefix in pairs(ns.Protocol) do
+        L30.Addon:RegisterComm(prefix)
     end
 end
 
 -- Send a message to the party
 function L30:BroadcastMessage(prefix, data, whisperTarget)
+    -- Don't broadcast if not in a group
+    if not IsInGroup() then
+        return
+    end
+    
     -- Serialize the data
     local serialized = LibSerialize:Serialize(data)
     
@@ -87,17 +91,14 @@ function L30:OnSyncCreatureKill(creatureGUID, sender)
         return
     end
     
-    -- Add the creature to our count
+    -- Add the creature to our count (will auto-deduplicate via GUID)
     if ns.TimerUI.IncrementCreatureCount then
         ns.TimerUI:IncrementCreatureCount(creatureGUID)
-        self:InfoMessage("Synced mob kill from %s", sender)
     end
 end
 
 -- Handle synced timer start
 function L30:OnSyncTimerStart(startTimestamp, sender)
-    self:InfoMessage("Received timer sync from %s", sender)
-    
     -- If we don't have a timer running, start one with the synced time
     if not ns.TimerUI or not ns.TimerUI.sessionData.running then
         self:AttemptTimerStart(startTimestamp)
@@ -137,5 +138,24 @@ function L30:BroadcastBossKill(encounterID, encounterName)
             encounterID = encounterID,
             encounterName = encounterName
         })
+    end
+end
+
+-- Handle synced death
+function L30:OnSyncDeath(playerName, sender)
+    if not ns.TimerUI or not ns.TimerUI.sessionData.running then
+        return
+    end
+    
+    -- Increment death count
+    if ns.TimerUI.IncrementDeathCount then
+        ns.TimerUI:IncrementDeathCount()
+    end
+end
+
+-- Broadcast death to the party
+function L30:BroadcastDeath(playerName)
+    if IsInGroup() then
+        self:BroadcastMessage(ns.Protocol.DEATH_SYNC, playerName)
     end
 end

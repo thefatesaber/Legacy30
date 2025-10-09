@@ -112,8 +112,9 @@ function L30:GetBossData(dungeonID)
     
     local totalBosses = #encounters
     
-    -- Debug log
-    if totalBosses > 0 then
+    -- Debug log - only show once per dungeon session
+    if totalBosses > 0 and not sessionData.bossDataLogged then
+        sessionData.bossDataLogged = true
         L30:InfoMessage("Loaded %d bosses from Settings.lua for dungeon %d", totalBosses, dungeonID)
     end
     
@@ -273,21 +274,35 @@ function L30.Addon:COMBAT_LOG_EVENT_UNFILTERED()
           destGUID, destName, destFlags = CombatLogGetCurrentEventInfo()
     
     if subevent == "UNIT_DIED" then
-        -- Check if it's an enemy
-        local isEnemy = not (bit.band(destFlags, COMBATLOG_OBJECT_REACTION_FRIENDLY) > 0)
+        -- Check if it's a player death (party member)
+        local isPlayer = bit.band(destFlags, COMBATLOG_OBJECT_TYPE_PLAYER) > 0
         
-        -- Check if it's an NPC (not a player)
-        local isNPC = bit.band(destFlags, COMBATLOG_OBJECT_TYPE_NPC) > 0
-        
-        if isEnemy and isNPC then
-            -- Always track locally first
-            if ns.TimerUI and ns.TimerUI.IncrementCreatureCount then
-                ns.TimerUI:IncrementCreatureCount(destGUID)
+        if isPlayer then
+            -- Track player death
+            if ns.TimerUI and ns.TimerUI.sessionData.running and ns.TimerUI.IncrementDeathCount then
+                ns.TimerUI:IncrementDeathCount()
+                L30:InfoMessage("%s died", destName or "Player")
+                
+                -- Broadcast death to party if function exists
+                if IsInGroup() and L30.BroadcastDeath then
+                    L30:BroadcastDeath(destName)
+                end
             end
+        else
+            -- Check if it's an enemy NPC
+            local isEnemy = not (bit.band(destFlags, COMBATLOG_OBJECT_REACTION_FRIENDLY) > 0)
+            local isNPC = bit.band(destFlags, COMBATLOG_OBJECT_TYPE_NPC) > 0
             
-            -- Broadcast to party members if function exists
-            if IsInGroup() and L30.BroadcastCreatureKill then
-                L30:BroadcastCreatureKill(destGUID)
+            if isEnemy and isNPC then
+                -- Always track locally first
+                if ns.TimerUI and ns.TimerUI.IncrementCreatureCount then
+                    ns.TimerUI:IncrementCreatureCount(destGUID)
+                end
+                
+                -- Broadcast to party members if function exists
+                if IsInGroup() and L30.BroadcastCreatureKill then
+                    L30:BroadcastCreatureKill(destGUID)
+                end
             end
         end
     end

@@ -64,6 +64,79 @@ function L30.Addon:ProcessCommand(input)
     elseif cmd == "restart" then
         L30:RestartTimer()
         
+    elseif cmd == "lock" then
+        -- Lock all movable frames
+        ns.FramesLocked = true
+        
+        -- Lock timer frame
+        if ns.TimerUI then
+            ns.TimerUI:SetDraggable(false)
+        end
+        
+        -- Lock completion frame
+        if ns.CompletionUI and ns.CompletionUI.frame then
+            ns.CompletionUI.frame:SetMovable(false)
+            ns.CompletionUI.frame:EnableMouse(false)
+        end
+        
+        -- Lock validation window
+        if ns.ValidationUI and ns.ValidationUI.window then
+            ns.ValidationUI.window:SetMovable(false)
+            ns.ValidationUI.window:EnableMouse(false)
+        end
+        
+        -- Lock export window
+        if ns.ExportUI and ns.ExportUI.window then
+            ns.ExportUI.window:SetMovable(false)
+            ns.ExportUI.window:EnableMouse(false)
+        end
+        
+        L30:InfoMessage("All frames locked in place")
+        
+    elseif cmd == "unlock" then
+        -- Unlock all movable frames
+        ns.FramesLocked = false
+        
+        -- Unlock timer frame
+        if ns.TimerUI then
+            ns.TimerUI:SetDraggable(true)
+        end
+        
+        -- Unlock completion frame
+        if ns.CompletionUI and ns.CompletionUI.frame then
+            ns.CompletionUI.frame:SetMovable(true)
+            ns.CompletionUI.frame:EnableMouse(true)
+        end
+        
+        -- Unlock validation window
+        if ns.ValidationUI and ns.ValidationUI.window then
+            ns.ValidationUI.window:SetMovable(true)
+            ns.ValidationUI.window:EnableMouse(true)
+        end
+        
+        -- Unlock export window
+        if ns.ExportUI and ns.ExportUI.window then
+            ns.ExportUI.window:SetMovable(true)
+            ns.ExportUI.window:EnableMouse(true)
+        end
+        
+        L30:InfoMessage("All frames unlocked - you can now move them")
+        
+    elseif cmd == "complete" or cmd == "finish" then
+        -- Testing command to simulate run completion
+        if not ns.TimerUI or not ns.TimerUI.sessionData.running then
+            L30:ErrorMessage("No timer is running - use /l30 start first")
+            return
+        end
+        
+        local elapsed = GetServerTime() - ns.TimerUI.sessionData.startTimestamp
+        L30:InfoMessage("Testing: Forcing run completion at %s", ns.FormatTime and ns.FormatTime(elapsed) or tostring(elapsed))
+        
+        -- Force complete the run
+        if ns.TimerUI.CompleteRun then
+            ns.TimerUI:CompleteRun(elapsed)
+        end
+        
     elseif cmd == "status" then
         if not ns.TimerUI or not ns.TimerUI.sessionData then
             L30:InfoMessage("Timer not initialized")
@@ -162,10 +235,13 @@ function L30:ShowHelpText()
     self:InfoMessage("  |cFF00FFFF/l30 stop|r - Stop the current timer")
     self:InfoMessage("  |cFF00FFFF/l30 reset|r - Reset timer to 0 and clear data")
     self:InfoMessage("  |cFF00FFFF/l30 restart|r - Reset and start fresh")
+    self:InfoMessage("  |cFF00FFFF/l30 complete|r - Force complete the run (testing)")
     self:InfoMessage(" ")
     self:InfoMessage("|cFFFFFF00Display:|r")
     self:InfoMessage("  |cFF00FFFF/l30 show|r - Force show/start timer in current dungeon")
     self:InfoMessage("  |cFF00FFFF/l30 hide|r - Hide the timer frame")
+    self:InfoMessage("  |cFF00FFFF/l30 lock|r - Lock all frames in place")
+    self:InfoMessage("  |cFF00FFFF/l30 unlock|r - Unlock frames for repositioning")
     self:InfoMessage(" ")
     self:InfoMessage("|cFFFFFF00Timer Settings:|r")
     self:InfoMessage("  |cFF00FFFF/l30 timer drag|r - Toggle timer drag mode")
