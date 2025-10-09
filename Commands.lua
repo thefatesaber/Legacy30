@@ -43,15 +43,55 @@ function L30.Addon:ProcessCommand(input)
             L30:ErrorMessage("You must be in a dungeon to use this command")
         end
         
+    elseif cmd == "hide" then
+        if ns.TimerUI and ns.TimerUI.frame then
+            ns.TimerUI.frame:Hide()
+            L30:InfoMessage("Timer frame hidden")
+        else
+            L30:ErrorMessage("Timer frame not initialized")
+        end
+        
     elseif cmd == "start" then
-        ns.PlayerReady = true
-        ns.WaitingForCombat = true
-        L30:InfoMessage("Ready status: Active - Timer will start on first combat")
-        -- Don't register event here - Events.lua will handle combat detection
-        -- Just set the flag for AttemptTimerStart to check
+        -- Manual start command
+        L30:AttemptTimerStart(GetServerTime())
+        
+    elseif cmd == "stop" then
+        L30:StopTimer()
+        
+    elseif cmd == "reset" then
+        L30:ResetTimer()
+        
+    elseif cmd == "restart" then
+        L30:RestartTimer()
+        
+    elseif cmd == "status" then
+        if not ns.TimerUI or not ns.TimerUI.sessionData then
+            L30:InfoMessage("Timer not initialized")
+        else
+            local data = ns.TimerUI.sessionData
+            if data.running then
+                local elapsed = GetServerTime() - data.startTimestamp
+                L30:InfoMessage("|cFF00FF00Timer Status:|r")
+                L30:InfoMessage("  Running: |cFF00FF00Yes|r")
+                L30:InfoMessage("  Dungeon: |cFFFFFF00%s|r", data.dungeonName or "Unknown")
+                L30:InfoMessage("  Time: |cFF00FFFF%s|r", ns.FormatTime and ns.FormatTime(elapsed) or "Unknown")
+                L30:InfoMessage("  Mobs: |cFF00FFFF%d|r", data.mobCount or 0)
+                
+                -- Count defeated bosses
+                local killed = 0
+                for _, boss in ipairs(data.bossData or {}) do
+                    if boss.defeated then
+                        killed = killed + 1
+                    end
+                end
+                L30:InfoMessage("  Bosses: |cFF00FFFF%d/%d|r", killed, data.totalBosses or 0)
+            else
+                L30:InfoMessage("Timer Status: |cFFFF0000Not running|r")
+            end
+        end
         
     elseif cmd == "help" or not cmd then
-        L30:ShowHelpText()  -- Changed from self: to L30:
+        L30:ShowHelpText()
         
     elseif cmd == "export" then
         if C_AddOns.IsAddOnLoaded("AllTheThings") then
@@ -60,26 +100,26 @@ function L30.Addon:ProcessCommand(input)
             local craft = args[4] == "yes"
             local pvp = args[5] == "yes"
             
-            L30:InfoMessage("Extracting data, please wait...")  -- Changed from self: to L30:
+            L30:InfoMessage("Extracting data, please wait...")
             RunNextFrame(function()
-                L30:ExportDatabase(instance, world, craft, pvp)  -- Changed from self: to L30:
+                L30:ExportDatabase(instance, world, craft, pvp)
             end)
         else
-            L30:ErrorMessage("AllTheThings addon required for export")  -- Changed from self: to L30:
+            L30:ErrorMessage("AllTheThings addon required for export")
         end
         
     elseif cmd == "search" then
-        L30:SearchItemDatabase(ns.ItemDatabase)  -- Changed from self: to L30:
+        L30:SearchItemDatabase(ns.ItemDatabase)
         
     elseif cmd == "validation" then
         ns.ValidationUI.window:Show()
         
     elseif cmd == "instances" then
-        L30:ExportInstanceData()  -- Changed from self: to L30:
+        L30:ExportInstanceData()
         
     else
-        L30:ErrorMessage("Unknown command: %s", cmd)  -- Changed from self: to L30:
-        L30:ShowHelpText()  -- Changed from self: to L30:
+        L30:ErrorMessage("Unknown command: %s", cmd)
+        L30:ShowHelpText()
     end
 end
 
@@ -115,16 +155,33 @@ function L30:HandleTimerCommand(args)
 end
 
 function L30:ShowHelpText()
-    self:InfoMessage("=== Legacy30 Commands ===")
-    self:InfoMessage("/l30 show - Force show/start timer in current dungeon")
-    self:InfoMessage("/l30 timer drag - Toggle timer drag mode")
-    self:InfoMessage("/l30 timer scale <num> - Set timer scale (percentage)")
-    self:InfoMessage("/l30 timer reset - Reset timer to defaults")
-    self:InfoMessage("/l30 start - Mark ready to begin")
-    self:InfoMessage("/l30 export <instance> <world> <craft> <pvp> - Export item DB")
-    self:InfoMessage("/l30 search - Search item database")
-    self:InfoMessage("/l30 validation - Show validation window")
-    self:InfoMessage("/l30 instances - Export instance data")
+    self:InfoMessage("|cFF00FF00=== Legacy30 Commands ===|r")
+    self:InfoMessage(" ")
+    self:InfoMessage("|cFFFFFF00Timer Control:|r")
+    self:InfoMessage("  |cFF00FFFF/l30 start|r - Manually start the timer")
+    self:InfoMessage("  |cFF00FFFF/l30 stop|r - Stop the current timer")
+    self:InfoMessage("  |cFF00FFFF/l30 reset|r - Reset timer to 0 and clear data")
+    self:InfoMessage("  |cFF00FFFF/l30 restart|r - Reset and start fresh")
+    self:InfoMessage(" ")
+    self:InfoMessage("|cFFFFFF00Display:|r")
+    self:InfoMessage("  |cFF00FFFF/l30 show|r - Force show/start timer in current dungeon")
+    self:InfoMessage("  |cFF00FFFF/l30 hide|r - Hide the timer frame")
+    self:InfoMessage(" ")
+    self:InfoMessage("|cFFFFFF00Timer Settings:|r")
+    self:InfoMessage("  |cFF00FFFF/l30 timer drag|r - Toggle timer drag mode")
+    self:InfoMessage("  |cFF00FFFF/l30 timer scale <num>|r - Set timer scale (percentage)")
+    self:InfoMessage("  |cFF00FFFF/l30 timer reset|r - Reset timer position to defaults")
+    self:InfoMessage(" ")
+    self:InfoMessage("|cFFFFFF00Info:|r")
+    self:InfoMessage("  |cFF00FFFF/l30 status|r - Show current timer status")
+    self:InfoMessage("  |cFF00FFFF/l30 validation|r - Show validation window")
+    self:InfoMessage(" ")
+    self:InfoMessage("|cFFFFFF00Advanced:|r")
+    self:InfoMessage("  |cFF00FFFF/l30 export|r - Export item database (requires AllTheThings)")
+    self:InfoMessage("  |cFF00FFFF/l30 search|r - Search item database")
+    self:InfoMessage("  |cFF00FFFF/l30 instances|r - Export instance data")
+    self:InfoMessage(" ")
+    self:InfoMessage("|cFF888888Tip: Timer auto-starts when entering configured dungeons|r")
 end
 
 function L30:ExportInstanceData()

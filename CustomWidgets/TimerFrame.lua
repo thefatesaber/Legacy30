@@ -43,7 +43,7 @@ local TimerWidget = {
 -- Constructor
 function TimerWidget:Create()
     local frame = CreateFrame("Frame", "Legacy30TimerFrame", UIParent, "BackdropTemplate")
-    frame:SetSize(300, 150)
+    frame:SetSize(300, 180)
     frame:SetPoint("RIGHT", -20, 0)
     frame:SetBackdrop({
         bgFile = "Interface/Tooltips/UI-Tooltip-Background",
@@ -89,9 +89,47 @@ function TimerWidget:Create()
     -- Best time display - SET FONT BEFORE TEXT!
     frame.bestText = frame:CreateFontString(nil, "OVERLAY")
     frame.bestText:SetFont(GetFont(11))
-    frame.bestText:SetPoint("BOTTOM", 0, 10)
+    frame.bestText:SetPoint("BOTTOM", 0, 30)
     frame.bestText:SetTextColor(0.7, 0.7, 0.7, 1)
     frame.bestText:SetText("Best: --:--")
+    
+    -- Control buttons container
+    frame.buttonContainer = CreateFrame("Frame", nil, frame)
+    frame.buttonContainer:SetSize(280, 30)
+    frame.buttonContainer:SetPoint("BOTTOM", 0, 5)
+    
+    -- Stop button
+    frame.stopButton = CreateFrame("Button", nil, frame.buttonContainer, "UIPanelButtonTemplate")
+    frame.stopButton:SetSize(60, 20)
+    frame.stopButton:SetPoint("LEFT", 10, 0)
+    frame.stopButton:SetText("Stop")
+    frame.stopButton:SetScript("OnClick", function()
+        if ns.Core and ns.Core.StopTimer then
+            ns.Core:StopTimer()
+        end
+    end)
+    
+    -- Reset button
+    frame.resetButton = CreateFrame("Button", nil, frame.buttonContainer, "UIPanelButtonTemplate")
+    frame.resetButton:SetSize(60, 20)
+    frame.resetButton:SetPoint("CENTER", 0, 0)
+    frame.resetButton:SetText("Reset")
+    frame.resetButton:SetScript("OnClick", function()
+        if ns.Core and ns.Core.ResetTimer then
+            ns.Core:ResetTimer()
+        end
+    end)
+    
+    -- Restart button
+    frame.restartButton = CreateFrame("Button", nil, frame.buttonContainer, "UIPanelButtonTemplate")
+    frame.restartButton:SetSize(70, 20)
+    frame.restartButton:SetPoint("RIGHT", -10, 0)
+    frame.restartButton:SetText("Restart")
+    frame.restartButton:SetScript("OnClick", function()
+        if ns.Core and ns.Core.RestartTimer then
+            ns.Core:RestartTimer()
+        end
+    end)
     
     -- Update loop
     frame.elapsed = 0
@@ -128,6 +166,7 @@ function TimerWidget:Initialize(sessionInfo)
         running = true,
         dungeonID = sessionInfo.dungeonID,
         dungeonName = sessionInfo.dungeonName,
+        difficulty = sessionInfo.difficulty,
         startTimestamp = sessionInfo.startTimestamp,
         bestTime = sessionInfo.bestTime,
         totalBosses = sessionInfo.totalBosses,

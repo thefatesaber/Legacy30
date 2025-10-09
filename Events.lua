@@ -205,9 +205,9 @@ function L30:AttemptTimerStart(startTimestamp)
         end
     end)
     
-    -- Broadcast timer start to group (if in group)
-    if IsInGroup() then
-        self:BroadcastMessage(ns.Protocol.TIMER_START, startTimestamp)
+    -- Broadcast timer start to group (if in group and function exists)
+    if IsInGroup() and self.BroadcastTimerStart then
+        self:BroadcastTimerStart(startTimestamp)
     end
 end
 
@@ -235,7 +235,27 @@ end
 function L30.Addon:ENCOUNTER_END(_, encounterID, encounterName, difficultyID, groupSize, success)
     if success == 1 then
         L30:InfoMessage("Boss defeated: %s (Encounter ID: %d)", encounterName, encounterID)
+        
+        -- Mark boss as defeated
         ns.DefeatedBosses[encounterID] = true
+        
+        -- Broadcast to party if function exists
+        if IsInGroup() and L30.BroadcastBossKill then
+            L30:BroadcastBossKill(encounterID, encounterName)
+        end
+        
+        -- Find which boss index this corresponds to
+        if ns.TimerUI.sessionData and ns.TimerUI.sessionData.bossData then
+            for i, boss in ipairs(ns.TimerUI.sessionData.bossData) do
+                -- Match by journal ID or encounter ID
+                if boss.journalID == encounterID or boss.encounterID == encounterID then
+                    -- Mark this boss as defeated in our data
+                    boss.defeated = true
+                    break
+                end
+            end
+        end
+        
         L30:OnBossProgress()
     end
 end
@@ -260,15 +280,84 @@ function L30.Addon:COMBAT_LOG_EVENT_UNFILTERED()
         local isNPC = bit.band(destFlags, COMBATLOG_OBJECT_TYPE_NPC) > 0
         
         if isEnemy and isNPC then
-            -- Track mob kills
-            if IsInGroup() then
-                L30:BroadcastMessage(ns.Protocol.CREATURE_SYNC, destGUID)
-            end
-            
-            -- Always track locally (for both solo and group)
+            -- Always track locally first
             if ns.TimerUI and ns.TimerUI.IncrementCreatureCount then
                 ns.TimerUI:IncrementCreatureCount(destGUID)
             end
+            
+            -- Broadcast to party members if function exists
+            if IsInGroup() and L30.BroadcastCreatureKill then
+                L30:BroadcastCreatureKill(destGUID)
+            end
         end
     end
+end
+
+-- Stop the current timer
+function L30:StopTimer()
+    if not ns.TimerUI or not ns.TimerUI.sessionData.running then
+        self:InfoMessage("No timer is currently running")
+        return
+    end
+    
+    ns.TimerUI.sessionData.running = false
+    
+    -- Unregister combat events
+    L30.Addon:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+    L30.Addon:UnregisterEvent("ENCOUNTER_END")
+    L30.Addon:UnregisterEvent("BOSS_KILL")
+    
+    self:InfoMessage("Timer stopped")
+end
+
+-- Reset the timer (stop and clear data)
+function L30:ResetTimer()
+    -- Stop the timer first
+    self:StopTimer()
+    
+    -- Clear session data
+    if ns.TimerUI then
+        ns.TimerUI.sessionData = {
+            running = false,
+            dungeonID = nil,
+            startTimestamp = nil,
+            bossData = {},
+            totalBosses = 0,
+            mobCount = 0,
+            mobList = {},
+            sessionID = nil
+        }
+        
+        -- Reset display
+        ns.TimerUI.frame.timerText:SetText("00:00")
+        ns.TimerUI.frame.mobText:SetText("Mobs: 0 (0%)")
+        ns.TimerUI.frame.bossText:SetText("Bosses: 0/0")
+        ns.TimerUI.frame.bestText:SetText("Best: --:--")
+    end
+    
+    -- Clear defeated bosses
+    ns.DefeatedBosses = {}
+    
+    self:InfoMessage("Timer reset")
+end
+
+-- Restart the timer (reset and start fresh)
+function L30:RestartTimer()
+    self:InfoMessage("Restarting timer...")
+    
+    -- Get current dungeon info before resetting
+    local dungeonName, _, _, difficulty, _, _, _, dungeonID = GetInstanceInfo()
+    
+    if not dungeonID or not ns.Dungeons or not ns.Dungeons[dungeonID] then
+        self:ErrorMessage("Cannot restart - not in a configured dungeon")
+        return
+    end
+    
+    -- Reset everything
+    self:ResetTimer()
+    
+    -- Wait a moment then start fresh
+    C_Timer.After(0.5, function()
+        self:AttemptTimerStart(GetServerTime())
+    end)
 end
