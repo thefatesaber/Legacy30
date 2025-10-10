@@ -141,16 +141,22 @@ function L30:BroadcastBossKill(encounterID, encounterName)
     end
 end
 
--- Handle synced death
+-- Handle synced death - FIXED to prevent double counting
 function L30:OnSyncDeath(playerName, sender)
     if not ns.TimerUI or not ns.TimerUI.sessionData.running then
         return
     end
     
-    -- Increment death count
-    if ns.TimerUI.IncrementDeathCount then
-        ns.TimerUI:IncrementDeathCount()
-    end
+    -- DO NOT increment death count from sync messages
+    -- Deaths are only counted locally by the person who sees them in combat log
+    -- This prevents double-counting:
+    --   - Player A dies -> their client counts it locally
+    --   - Player A broadcasts death to party
+    --   - Everyone else would count it again = DOUBLE COUNT
+    -- Solution: Only count locally, ignore sync messages
+    
+    -- Optional: Log for debugging (commented out to reduce spam)
+    -- self:InfoMessage("Death synced from %s: %s", sender, playerName)
 end
 
 -- Broadcast death to the party

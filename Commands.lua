@@ -337,6 +337,9 @@ end
 function L30:BuildRunDataFromSession(session)
     local dungeonName, _, difficulty = GetInstanceInfo()
     
+    -- Get death counts from session (should be a table like {["PlayerName"] = count})
+    local deathCounts = session.deathCounts or {}
+    
     -- Collect players
     local players = {}
     
@@ -346,7 +349,7 @@ function L30:BuildRunDataFromSession(session)
         name = playerName,
         itemLevel = math.floor(select(1, GetAverageItemLevel()) or 0),
         mobsKilled = session.mobCount or 0,
-        deaths = 0  -- TODO: Track deaths
+        deaths = deathCounts[playerName] or 0
     })
     
     -- Add party members
@@ -361,7 +364,7 @@ function L30:BuildRunDataFromSession(session)
                         name = name,
                         itemLevel = 0,  -- Can't get remote ilvl easily
                         mobsKilled = 0,  -- Would need sync
-                        deaths = 0
+                        deaths = deathCounts[name] or 0
                     })
                 end
             end
