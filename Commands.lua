@@ -162,6 +162,12 @@ function L30.Addon:ProcessCommand(input)
                 L30:InfoMessage("Timer Status: |cFFFF0000Not running|r")
             end
         end
+    
+    elseif cmd == "key" then
+        L30:HandleKeyCommand(args)
+    
+    elseif cmd == "exportrun" then
+        L30:HandleExportRunCommand(args)
         
     elseif cmd == "help" or not cmd then
         L30:ShowHelpText()
@@ -227,6 +233,229 @@ function L30:HandleTimerCommand(args)
     end
 end
 
+-- ============================================================================
+-- ENCRYPTION KEY COMMAND
+-- ============================================================================
+
+function L30:HandleKeyCommand(args)
+    if not ns.Encryption then
+        self:ErrorMessage("Encryption module not loaded")
+        return
+    end
+    
+    -- Remove the "key" command itself
+    table.remove(args, 1)
+    
+    -- Join remaining args as the key
+    local key = table.concat(args, " ")
+    
+    if not key or key == "" then
+        -- Show status
+        if ns.Encryption:HasKey() then
+            local currentKey = ns.Encryption:GetKey()
+            self:InfoMessage("|cFF00FF00Encryption key is set|r")
+            self:InfoMessage("Preview: %s***", currentKey:sub(1, math.min(6, #currentKey)))
+        else
+            self:ErrorMessage("No encryption key configured")
+        end
+        self:InfoMessage("Usage: |cFFFFFF00/l30 key <your-secret-key>|r")
+        return
+    end
+    
+    -- Set the key
+    local success, err = ns.Encryption:SetKey(key)
+    
+    if success then
+        self:InfoMessage("|cFF00FF00Encryption key set successfully|r")
+        self:InfoMessage("Preview: %s***", key:sub(1, math.min(6, #key)))
+    else
+        self:ErrorMessage("Failed to set key: %s", err or "unknown error")
+    end
+end
+
+-- ============================================================================
+-- EXPORT RUN COMMAND
+-- ============================================================================
+
+function L30:HandleExportRunCommand(args)
+    if not ns.Encryption then
+        self:ErrorMessage("Encryption module not loaded")
+        return
+    end
+    
+    -- Get run data
+    local runData = self:CollectRunData()
+    
+    if not runData then
+        self:ErrorMessage("No run data available")
+        self:InfoMessage("Start or complete a dungeon run first")
+        return
+    end
+    
+    -- Show what we're exporting
+    self:InfoMessage("Exporting: |cFFFFFF00%s|r", runData.dungeonName)
+    self:InfoMessage("Duration: |cFF00FFFF%s|r", ns.FormatTime and ns.FormatTime(runData.durationSeconds) or (runData.durationSeconds .. "s"))
+    self:InfoMessage("Players: |cFF00FFFF%d|r", #runData.players)
+    
+    -- Export
+    local exportString, err = ns.Encryption:ExportRun(runData)
+    
+    if not exportString then
+        self:ErrorMessage("Export failed: %s", err or "unknown error")
+        return
+    end
+    
+    -- Display the export string
+    self:DisplayExportString(exportString)
+    
+    self:InfoMessage("|cFF00FF00Export generated!|r Length: %d chars", #exportString)
+end
+
+-- ============================================================================
+-- DATA COLLECTION FOR EXPORT
+-- ============================================================================
+
+function L30:CollectRunData()
+    -- Try active timer first
+    if ns.TimerUI and ns.TimerUI.sessionData then
+        local session = ns.TimerUI.sessionData
+        
+        if session.running or session.completed then
+            return self:BuildRunDataFromSession(session)
+        end
+    end
+    
+    -- Fallback to last completed run
+    if self.Addon.database.runHistory and #self.Addon.database.runHistory > 0 then
+        local lastRun = self.Addon.database.runHistory[#self.Addon.database.runHistory]
+        return self:BuildRunDataFromHistory(lastRun)
+    end
+    
+    return nil
+end
+
+function L30:BuildRunDataFromSession(session)
+    local dungeonName, _, difficulty = GetInstanceInfo()
+    
+    -- Collect players
+    local players = {}
+    
+    -- Add player
+    local playerName = UnitName("player")
+    table.insert(players, {
+        name = playerName,
+        itemLevel = math.floor(select(1, GetAverageItemLevel()) or 0),
+        mobsKilled = session.mobCount or 0,
+        deaths = 0  -- TODO: Track deaths
+    })
+    
+    -- Add party members
+    if IsInGroup() then
+        local numMembers = GetNumGroupMembers()
+        for i = 1, numMembers do
+            local unit = (IsInRaid() and "raid" or "party") .. i
+            if UnitExists(unit) and not UnitIsUnit(unit, "player") then
+                local name = UnitName(unit)
+                if name then
+                    table.insert(players, {
+                        name = name,
+                        itemLevel = 0,  -- Can't get remote ilvl easily
+                        mobsKilled = 0,  -- Would need sync
+                        deaths = 0
+                    })
+                end
+            end
+        end
+    end
+    
+    -- Calculate duration
+    local currentTime = GetServerTime()
+    local startTime = session.startTimestamp or currentTime
+    local endTime = session.completed and session.completedTimestamp or currentTime
+    local duration = endTime - startTime
+    
+    return {
+        dungeonName = dungeonName or "Unknown",
+        difficulty = difficulty or "Normal",
+        startTime = date("!%Y-%m-%dT%H:%M:%SZ", startTime),
+        endTime = date("!%Y-%m-%dT%H:%M:%SZ", endTime),
+        durationSeconds = duration,
+        players = players
+    }
+end
+
+function L30:BuildRunDataFromHistory(historyEntry)
+    local players = {}
+    
+    -- Build player list from groupData
+    if historyEntry.groupData then
+        for _, memberData in pairs(historyEntry.groupData) do
+            table.insert(players, {
+                name = memberData.name or "Unknown",
+                itemLevel = 0,
+                mobsKilled = 0,
+                deaths = 0
+            })
+        end
+    end
+    
+    -- Get dungeon name
+    local dungeonName = "Unknown"
+    if historyEntry.dungeonID then
+        dungeonName = GetRealZoneText() or "Dungeon " .. historyEntry.dungeonID
+    end
+    
+    local startTime = historyEntry.timestamp - (historyEntry.totalTime or 0)
+    local endTime = historyEntry.timestamp
+    
+    return {
+        dungeonName = dungeonName,
+        difficulty = "Normal",  -- TODO: Store in history
+        startTime = date("!%Y-%m-%dT%H:%M:%SZ", startTime),
+        endTime = date("!%Y-%m-%dT%H:%M:%SZ", endTime),
+        durationSeconds = historyEntry.totalTime or 0,
+        players = players
+    }
+end
+
+-- ============================================================================
+-- DISPLAY EXPORT STRING
+-- ============================================================================
+
+function L30:DisplayExportString(exportString)
+    -- Use existing ExportUI if available
+    if ns.ExportUI and ns.ExportUI.ShowData then
+        ns.ExportUI:ShowData(exportString)
+        return
+    end
+    
+    -- Fallback: StaticPopup
+    StaticPopup_Show("L30_ENCRYPTED_EXPORT", nil, nil, exportString)
+end
+
+-- StaticPopup definition
+if not StaticPopupDialogs["L30_ENCRYPTED_EXPORT"] then
+    StaticPopupDialogs["L30_ENCRYPTED_EXPORT"] = {
+        text = "Encrypted Export String:|n|nCopy this to your dashboard:",
+        button1 = OKAY,
+        hasEditBox = 1,
+        editBoxWidth = 350,
+        OnShow = function(self, data)
+            self.editBox:SetText(data)
+            self.editBox:HighlightText()
+            self.editBox:SetFocus()
+        end,
+        timeout = 0,
+        whileDead = 1,
+        hideOnEscape = 1,
+        preferredIndex = 3,
+    }
+end
+
+-- ============================================================================
+-- HELP TEXT
+-- ============================================================================
+
 function L30:ShowHelpText()
     self:InfoMessage("|cFF00FF00=== Legacy30 Commands ===|r")
     self:InfoMessage(" ")
@@ -252,6 +481,10 @@ function L30:ShowHelpText()
     self:InfoMessage("  |cFF00FFFF/l30 status|r - Show current timer status")
     self:InfoMessage("  |cFF00FFFF/l30 validation|r - Show validation window")
     self:InfoMessage(" ")
+    self:InfoMessage("|cFFFFFF00Export & Encryption:|r")
+    self:InfoMessage("  |cFF00FFFF/l30 key <secret>|r - Set encryption key")
+    self:InfoMessage("  |cFF00FFFF/l30 exportrun|r - Export current/last run (encrypted)")
+    self:InfoMessage(" ")
     self:InfoMessage("|cFFFFFF00Advanced:|r")
     self:InfoMessage("  |cFF00FFFF/l30 export|r - Export item database (requires AllTheThings)")
     self:InfoMessage("  |cFF00FFFF/l30 search|r - Search item database")
@@ -259,6 +492,10 @@ function L30:ShowHelpText()
     self:InfoMessage(" ")
     self:InfoMessage("|cFF888888Tip: Timer auto-starts when entering configured dungeons|r")
 end
+
+-- ============================================================================
+-- EXISTING EXPORT FUNCTIONS (unchanged)
+-- ============================================================================
 
 function L30:ExportInstanceData()
     if not IsAddOnLoaded("Blizzard_EncounterJournal") then

@@ -3,7 +3,7 @@
 ## Title: Legacy30 - Dungeon Speedrun Timer
 ## Notes: Original speedrun timer for legacy dungeons with validation
 ## Author: YourName
-## SavedVariables: Legacy30DB
+## SavedVariables: Legacy30DB, L30_ExportState
 ## OptionalDeps: Ace3, AllTheThings
 ## X-Embeds: Ace3
 
@@ -12,6 +12,7 @@ widgets.xml
 
 Core.lua
 Settings.lua
+Encryption.lua
 Sync.lua
 Events.lua
 Commands.lua

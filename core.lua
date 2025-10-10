@@ -73,6 +73,19 @@ function L30.Addon:OnInitialize()
     }
     self.database = Legacy30DB
     
+    -- Initialize encryption SavedVariables
+    if not L30_ExportState then
+        L30_ExportState = {}
+    end
+    
+    -- Initialize encryption module
+    if ns.Encryption then
+        ns.Encryption:Initialize()
+        L30:InfoMessage("Encryption module initialized")
+    else
+        L30:ErrorMessage("Warning: Encryption module not loaded")
+    end
+    
     -- Register slash commands
     self:RegisterChatCommand("legacy30", "ProcessCommand")
     self:RegisterChatCommand("l30", "ProcessCommand")

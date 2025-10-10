@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>L30R1 RC4 Base64 Decrypter</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <style>
+    :root { --pad:12px; }
+    body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:0;padding:24px;max-width:1000px}
+    h1{margin-top:0}
+    label{display:block;margin:14px 0 6px}
+    input,textarea,button{width:100%;box-sizing:border-box}
+    textarea{min-height:120px;padding:var(--pad);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+    input{padding:10px}
+    button{padding:12px;margin-top:10px;cursor:pointer}
+    .row{display:grid;gap:12px}
+    .grid2{display:grid;gap:12px;grid-template-columns:1fr 1fr}
+    pre{background:#0f1115;color:#e6e6e6;padding:16px;border-radius:8px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+    .muted{color:#666;font-size:.9em}
+    .ok{color:#2c7a2c}
+    .err{color:#b00020}
+    .pill{display:inline-block;background:#eee;padding:2px 8px;border-radius:999px;margin-right:8px;font-family:ui-monospace,monospace}
+  </style>
+</head>
+<body>
+  <h1>L30R1 RC4 Base64 Decrypter</h1>
+
+  <div class="row">
+    <label><strong>Export string</strong></label>
+    <textarea id="exp" placeholder="L30R1.123456.AABBCC...=">L30R1.117037.i1Kvyt5c65ar5YfaMCcRImFttByK4KxirHcNAl3WtdJ21lU/Lbm3aNT9ywCoKm8mnnrru+oRMJywr9St4C3F0CsGCBGQtessDTuZusgiELWTlXJhEzTph/6Tfo18itMOc7CI6uyBExD7uQvugtAtU0ndGtM0F5GvXm7sjyYewn3RWEd73ILlgJGtsDfy+qdGDb+M2P4oyEWElLeFZTkOmJjjmCRJtTWOQwMIjlKQMmcchUMS6Y7VqLewpO+hAP8nDMLzQoVDavfO4FuOP4wf1OuaX6IwiYPaXBB5wz8oJu9XzgeyLpS+ylbe2lShWHWuxDIwuYp4NFKiI8jq7nz3P+eTEhc5rWacdcEiILo=</textarea>
+
+    <label><strong>Base key</strong></label>
+    <input id="key" placeholder="Example: S3cr3t-2025-10-09" />
+
+    <div class="grid2">
+      <button id="decode">Decode</button>
+      <button id="copyJson" title="Copy JSON result">Copy JSON</button>
+    </div>
+
+    <div id="meta" class="muted"></div>
+
+    <label><strong>Result</strong></label>
+    <pre id="out">Waiting...</pre>
+  </div>
+
+  <script>
+    // Helpers
+    function b64ToBytes(b64){
+      // tolerate whitespace
+      b64 = b64.replace(/\s+/g,'');
+      var bin = atob(b64);
+      var u8 = new Uint8Array(bin.length);
+      for (var i=0;i<bin.length;i++) u8[i] = bin.charCodeAt(i);
+      return u8;
+    }
+    function strToBytesLatin1(s){
+      // RC4 here expects raw byte values of the session key string, like Lua's string:byte
+      var u8 = new Uint8Array(s.length);
+      for (var i=0;i<s.length;i++) u8[i] = s.charCodeAt(i) & 0xFF;
+      return u8;
+    }
+    function bytesToText(u8){
+      // Try TextDecoder first, fallback to latin1
+      if (window.TextDecoder){
+        try { return new TextDecoder().decode(u8); } catch(e){}
+      }
+      var s = "";
+      for (var i=0;i<u8.length;i++) s += String.fromCharCode(u8[i]);
+      return s;
+    }
+
+    // RC4 classic KSA + PRGA, no drop
+    function rc4(keyBytes, dataBytes){
+      var S = new Uint8Array(256);
+      for (var i=0;i<256;i++) S[i]=i;
+      var j=0, t;
+      for (var i2=0;i2<256;i2++){
+        j = (j + S[i2] + keyBytes[i2 % keyBytes.length]) & 255;
+        t = S[i2]; S[i2] = S[j]; S[j] = t;
+      }
+      var out = new Uint8Array(dataBytes.length);
+      var i=0; j=0;
+      for (var n=0;n<dataBytes.length;n++){
+        i = (i + 1) & 255;
+        j = (j + S[i]) & 255;
+        t = S[i]; S[i] = S[j]; S[j] = t;
+        var K = S[(S[i] + S[j]) & 255];
+        out[n] = dataBytes[n] ^ K;
+      }
+      return out;
+    }
+
+    function parseExport(str){
+      if (!/^L30R1\./.test(str)) throw new Error("Bad tag. Expected L30R1.");
+      var parts = str.split(".");
+      if (parts.length !== 3) throw new Error("Malformed export string. Expected 3 parts.");
+      return { nonce: parts[1], b64: parts[2] };
+    }
+
+    function prettyMeta(obj){
+      if (!obj) return "";
+      var pills = [];
+      if (obj.generatedAt) pills.push('<span class="pill">generatedAt: '+escapeHtml(obj.generatedAt)+'</span>');
+      if (obj.dungeonName) pills.push('<span class="pill">dungeon: '+escapeHtml(obj.dungeonName)+'</span>');
+      if (obj.difficulty) pills.push('<span class="pill">difficulty: '+escapeHtml(obj.difficulty)+'</span>');
+      if (obj.durationSeconds != null) pills.push('<span class="pill">duration: '+String(obj.durationSeconds)+'s</span>');
+      if (obj.players && obj.players.length) pills.push('<span class="pill">players: '+obj.players.length+'</span>');
+      if (obj.totalDeaths != null) pills.push('<span class="pill">totalDeaths: '+String(obj.totalDeaths)+'</span>');
+      return pills.join(" ");
+    }
+    function escapeHtml(s){
+      return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    }
+
+    $("#decode").on("click", function(){
+      var exp = $("#exp").val().trim();
+      var baseKey = $("#key").val();
+      var $out = $("#out"), $meta=$("#meta");
+      try{
+        if (!baseKey) throw new Error("Base key is required.");
+        var { nonce, b64 } = parseExport(exp);
+        var sessionKey = baseKey + "|" + nonce;
+
+        var cipher = b64ToBytes(b64);
+        var plainBytes = rc4(strToBytesLatin1(sessionKey), cipher);
+        var text = bytesToText(plainBytes);
+
+        // Try JSON parse
+        var obj = JSON.parse(text);
+        $out.text(JSON.stringify(obj, null, 2));
+        $meta.html('<span class="ok">OK.</span> Nonce '+escapeHtml(nonce)+'. ' + prettyMeta(obj));
+      }catch(e){
+        $out.text("Decode failed: " + e.message);
+        $meta.html('<span class="err">Error.</span> Check the base key and input string.');
+      }
+    });
+
+    $("#copyJson").on("click", function(){
+      var txt = $("#out").text();
+      navigator.clipboard.writeText(txt).then(
+        () => alert("JSON copied."),
+        () => alert("Copy failed.")
+      );
+    });
+  </script>
+</body>
+</html>
