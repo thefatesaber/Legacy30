@@ -426,27 +426,65 @@ end
 -- ============================================================================
 
 function L30:DisplayExportString(exportString)
-    -- Use existing ExportUI if available
-    if ns.ExportUI and ns.ExportUI.ShowData then
-        ns.ExportUI:ShowData(exportString)
-        return
-    end
-    
-    -- Fallback: StaticPopup
+    -- Always use StaticPopup for consistent UI
     StaticPopup_Show("L30_ENCRYPTED_EXPORT", nil, nil, exportString)
 end
 
 -- StaticPopup definition
 if not StaticPopupDialogs["L30_ENCRYPTED_EXPORT"] then
     StaticPopupDialogs["L30_ENCRYPTED_EXPORT"] = {
-        text = "Encrypted Export String:|n|nCopy this to your dashboard:",
+        text = "Encrypted Export String:|n|nThe text is selected. Press Ctrl+C to copy.",
         button1 = OKAY,
         hasEditBox = 1,
         editBoxWidth = 350,
         OnShow = function(self, data)
-            self.editBox:SetText(data)
-            self.editBox:HighlightText()
-            self.editBox:SetFocus()
+            -- Use uppercase EditBox (WoW StaticPopup convention)
+            local editBox = self.EditBox or self.editBox
+            if not editBox then return end
+            
+            editBox:SetText(data)
+            editBox:HighlightText()
+            editBox:SetFocus()
+            editBox:SetAutoFocus(true)
+            
+            -- Track if Ctrl was pressed
+            self.ctrlPressed = false
+            
+            -- Monitor for Ctrl key
+            editBox:SetScript("OnKeyDown", function(eb, key)
+                if key == "LCTRL" or key == "RCTRL" then
+                    self.ctrlPressed = true
+                end
+            end)
+            
+            -- Monitor for key up - if Ctrl+C was pressed, close on next key
+            editBox:SetScript("OnKeyUp", function(eb, key)
+                -- If C was released and Ctrl was pressed, close the window
+                if key == "C" and self.ctrlPressed then
+                    C_Timer.After(0.05, function()
+                        self:Hide()
+                    end)
+                end
+                
+                -- Reset Ctrl tracking when Ctrl is released
+                if key == "LCTRL" or key == "RCTRL" then
+                    self.ctrlPressed = false
+                end
+            end)
+        end,
+        EditBoxOnEscapePressed = function(self)
+            self:GetParent():Hide()
+        end,
+        OnHide = function(self)
+            -- Clean up scripts
+            local editBox = self.EditBox or self.editBox
+            if editBox then
+                editBox:SetScript("OnKeyDown", nil)
+                editBox:SetScript("OnKeyUp", nil)
+            end
+        end,
+        OnAccept = function(self)
+            self:Hide()
         end,
         timeout = 0,
         whileDead = 1,

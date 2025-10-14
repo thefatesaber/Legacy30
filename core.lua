@@ -86,6 +86,11 @@ function L30.Addon:OnInitialize()
         L30:ErrorMessage("Warning: Encryption module not loaded")
     end
     
+    -- Initialize minimap button
+    if ns.MinimapButton then
+        ns.MinimapButton:Initialize()
+    end
+    
     -- Register slash commands
     self:RegisterChatCommand("legacy30", "ProcessCommand")
     self:RegisterChatCommand("l30", "ProcessCommand")

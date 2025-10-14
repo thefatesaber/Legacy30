@@ -26,6 +26,10 @@ function ExportWidget:Create()
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
     frame:Hide()
     
+    -- Enable keyboard input for the frame
+    frame:EnableKeyboard(true)
+    frame:SetPropagateKeyboardInput(true)
+    
     -- Title bar
     frame.titleBar = CreateFrame("Frame", nil, frame)
     frame.titleBar:SetPoint("TOPLEFT")
@@ -86,6 +90,34 @@ function ExportWidget:Create()
     
     frame.editBox = editBox
     
+    -- Add key handling for Ctrl+C detection
+    frame:SetScript("OnKeyDown", function(self, key)
+        -- Close on Escape
+        if key == "ESCAPE" then
+            self:Hide()
+        end
+        
+        -- Track Ctrl key press
+        if key == "LCTRL" or key == "RCTRL" then
+            self.ctrlPressed = true
+        end
+    end)
+    
+    frame:SetScript("OnKeyUp", function(self, key)
+        -- Detect Ctrl+C combination
+        if key == "C" and self.ctrlPressed then
+            -- Wait a moment for clipboard copy to complete, then close
+            C_Timer.After(0.1, function()
+                self:Hide()
+            end)
+        end
+        
+        -- Reset Ctrl tracking when released
+        if key == "LCTRL" or key == "RCTRL" then
+            self.ctrlPressed = false
+        end
+    end)
+    
     -- Scroll bar (if ScrollBox exists - modern API)
     if scrollFrame.ScrollBox then
         frame.scrollBar = CreateFrame("EventFrame", nil, frame, "MinimalScrollBar")
@@ -131,6 +163,9 @@ function ExportWidget:ShowData(text)
     self.frame.charCount:SetText(string.format("%s characters", 
         self:FormatNumber(length)
     ))
+    
+    -- Reset Ctrl tracking
+    self.frame.ctrlPressed = false
     
     self.frame:Show()
     

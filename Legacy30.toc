@@ -13,6 +13,7 @@ widgets.xml
 Core.lua
 Settings.lua
 Encryption.lua
+MinimapButton.lua
 Sync.lua
 Events.lua
 Commands.lua
