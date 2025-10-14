@@ -33,15 +33,33 @@ function MinimapBtn:Initialize()
     -- Highlight texture
     button:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
     
-    -- Dragging functionality
+    -- Dragging functionality - constrained to minimap edge
     button:SetMovable(true)
     button:RegisterForDrag("LeftButton")
+    
     button:SetScript("OnDragStart", function(self)
-        self:StartMoving()
+        self.isDragging = true
+        self:LockHighlight()
     end)
+    
     button:SetScript("OnDragStop", function(self)
-        self:StopMovingOrSizing()
+        self.isDragging = false
+        self:UnlockHighlight()
         MinimapBtn:SavePosition()
+    end)
+    
+    -- Update position while dragging to stay on minimap edge
+    button:SetScript("OnUpdate", function(self)
+        if self.isDragging then
+            local mx, my = Minimap:GetCenter()
+            local px, py = GetCursorPosition()
+            local scale = Minimap:GetEffectiveScale()
+            px, py = px / scale, py / scale
+            
+            -- Calculate angle from minimap center to cursor
+            local angle = math.deg(math.atan2(py - my, px - mx))
+            MinimapBtn:SetPosition(angle)
+        end
     end)
     
     -- Click handlers
@@ -308,7 +326,10 @@ StaticPopupDialogs["L30_SET_KEY"] = {
     hasEditBox = 1,
     maxLetters = 64,
     OnAccept = function(self)
-        local key = self.editBox:GetText()
+        local editBox = self.EditBox or self.editBox
+        if not editBox then return end
+        
+        local key = editBox:GetText()
         if key and key ~= "" then
             if ns.Encryption then
                 ns.Encryption:SetKey(key)
