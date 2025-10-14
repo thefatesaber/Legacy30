@@ -58,6 +58,11 @@ function L30:CheckZone()
             ns.TimerUI.frame:Hide()
         end
         L30.Addon:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+        
+        -- Cancel pull timer if leaving instance
+        if ns.PullTimer and ns.PullTimer.active then
+            ns.PullTimer:Cancel()
+        end
     end
 end
 
@@ -376,3 +381,202 @@ function L30:RestartTimer()
         self:AttemptTimerStart(GetServerTime())
     end)
 end
+
+-- ============================================================================
+-- PULL TIMER SYSTEM
+-- ============================================================================
+
+local PullTimer = {
+    active = false,
+    remaining = 0,
+    frame = nil,
+    ticker = nil,
+    totalSeconds = 0
+}
+
+-- Create pull timer frame
+function PullTimer:CreateFrame()
+    if self.frame then return self.frame end
+    
+    local frame = CreateFrame("Frame", "Legacy30PullTimer", UIParent, "BackdropTemplate")
+    frame:SetSize(300, 150)
+    frame:SetPoint("CENTER", 0, 150)
+    frame:SetFrameStrata("HIGH")
+    frame:SetBackdrop({
+        bgFile = "Interface/Tooltips/UI-Tooltip-Background",
+        edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
+        tile = true,
+        tileSize = 16,
+        edgeSize = 16,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 }
+    })
+    frame:SetBackdropColor(0, 0, 0, 0.9)
+    frame:SetBackdropBorderColor(1, 0.8, 0, 1)
+    frame:Hide()
+    
+    -- Title text
+    frame.title = frame:CreateFontString(nil, "OVERLAY")
+    frame.title:SetFont("Fonts\\FRIZQT__.TTF", 16, "OUTLINE")
+    frame.title:SetPoint("TOP", 0, -15)
+    frame.title:SetText("Pull Timer")
+    frame.title:SetTextColor(1, 0.8, 0, 1)
+    
+    -- Countdown text (large)
+    frame.countdown = frame:CreateFontString(nil, "OVERLAY")
+    frame.countdown:SetFont("Fonts\\FRIZQT__.TTF", 72, "OUTLINE")
+    frame.countdown:SetPoint("CENTER", 0, 10)
+    frame.countdown:SetText("10")
+    frame.countdown:SetTextColor(1, 1, 1, 1)
+    
+    -- Status text
+    frame.status = frame:CreateFontString(nil, "OVERLAY")
+    frame.status:SetFont("Fonts\\FRIZQT__.TTF", 12, "OUTLINE")
+    frame.status:SetPoint("BOTTOM", 0, 15)
+    frame.status:SetText("Timer will start automatically")
+    frame.status:SetTextColor(0.7, 0.7, 0.7, 1)
+    
+    self.frame = frame
+    return frame
+end
+
+-- Start pull timer
+function PullTimer:Start(seconds)
+    if self.active then
+        if ns.Core then
+            ns.Core:ErrorMessage("Pull timer already active")
+        end
+        return
+    end
+    
+    -- Create frame if needed
+    if not self.frame then
+        self:CreateFrame()
+    end
+    
+    self.totalSeconds = seconds
+    self.remaining = seconds
+    self.active = true
+    
+    -- Show frame
+    self.frame:Show()
+    self:UpdateDisplay()
+    
+    -- Play pull sound
+    PlaySound(8960, "Master")  -- Ready check sound
+    
+    if ns.Core then
+        ns.Core:InfoMessage("Pull timer started: %d seconds", seconds)
+    end
+    
+    -- Start countdown ticker
+    self.ticker = C_Timer.NewTicker(1, function()
+        self:Tick()
+    end)
+end
+
+-- Tick countdown
+function PullTimer:Tick()
+    if not self.active then
+        self:Cancel()
+        return
+    end
+    
+    self.remaining = self.remaining - 1
+    self:UpdateDisplay()
+    
+    -- Play sounds at key intervals
+    if self.remaining == 5 then
+        PlaySound(8959, "Master")  -- Warning sound
+    elseif self.remaining <= 3 and self.remaining > 0 then
+        PlaySound(8458, "Master")  -- Countdown beep
+    elseif self.remaining == 0 then
+        PlaySound(8232, "Master")  -- GO! sound
+        self:Complete()
+    end
+end
+
+-- Update display
+function PullTimer:UpdateDisplay()
+    if not self.frame then return end
+    
+    -- Update countdown number
+    self.frame.countdown:SetText(tostring(self.remaining))
+    
+    -- Dynamic font sizing - much bigger for last 5 seconds
+    local fontSize
+    if self.remaining <= 5 then
+        fontSize = 150  -- Much bigger for final countdown
+    else
+        fontSize = 72   -- Normal size
+    end
+    self.frame.countdown:SetFont("Fonts\\FRIZQT__.TTF", fontSize, "OUTLINE")
+    
+    -- Color coding
+    if self.remaining <= 3 then
+        self.frame.countdown:SetTextColor(1, 0, 0, 1)  -- Red
+        self.frame:SetBackdropBorderColor(1, 0, 0, 1)
+    elseif self.remaining <= 5 then
+        self.frame.countdown:SetTextColor(1, 0.5, 0, 1)  -- Orange
+        self.frame:SetBackdropBorderColor(1, 0.5, 0, 1)
+    else
+        self.frame.countdown:SetTextColor(1, 1, 1, 1)  -- White
+        self.frame:SetBackdropBorderColor(1, 0.8, 0, 1)
+    end
+    
+    -- Update status text
+    if self.remaining > 0 then
+        self.frame.status:SetText("Timer will start automatically")
+    else
+        self.frame.status:SetText("GO!")
+    end
+end
+
+-- Complete countdown and start timer
+function PullTimer:Complete()
+    self.active = false
+    
+    -- Stop ticker
+    if self.ticker then
+        self.ticker:Cancel()
+        self.ticker = nil
+    end
+    
+    -- Show GO message briefly
+    C_Timer.After(0.5, function()
+        if self.frame then
+            self.frame:Hide()
+        end
+    end)
+    
+    -- Start the actual dungeon timer
+    if ns.Core then
+        ns.Core:InfoMessage("|cFF00FF00GO! Timer started!|r")
+        
+        -- Reset timer if already running
+        if ns.TimerUI and ns.TimerUI.sessionData.running then
+            ns.Core:ResetTimer()
+            C_Timer.After(0.3, function()
+                ns.Core:AttemptTimerStart(GetServerTime())
+            end)
+        else
+            ns.Core:AttemptTimerStart(GetServerTime())
+        end
+    end
+end
+
+-- Cancel pull timer
+function PullTimer:Cancel()
+    self.active = false
+    
+    if self.ticker then
+        self.ticker:Cancel()
+        self.ticker = nil
+    end
+    
+    if self.frame then
+        self.frame:Hide()
+    end
+end
+
+-- Initialize pull timer system
+ns.PullTimer = PullTimer

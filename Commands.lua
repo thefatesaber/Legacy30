@@ -15,6 +15,9 @@ function L30.Addon:ProcessCommand(input)
     if cmd == "timer" then
         L30:HandleTimerCommand(args)
         
+    elseif cmd == "pull" then
+        L30:HandlePullCommand(args)
+        
     elseif cmd == "show" then
         -- Manual command to show and start timer - ONLY for configured dungeons
         local inInstance, instanceType = IsInInstance()
@@ -222,7 +225,7 @@ function L30:HandleTimerCommand(args)
         
     elseif subCmd == "reset" then
         self.Addon.database.preferences = {
-            position = { "RIGHT" },  -- Simple format: just anchor point
+            position = { "RIGHT" },
             uiScale = 1
         }
         self:InfoMessage("Timer settings reset to defaults")
@@ -230,6 +233,58 @@ function L30:HandleTimerCommand(args)
         
     else
         self:ErrorMessage("Unknown timer command: %s", subCmd or "nil")
+    end
+end
+
+-- ============================================================================
+-- PULL TIMER COMMAND
+-- ============================================================================
+
+function L30:HandlePullCommand(args)
+    local subCmd = args[2]
+    
+    if subCmd == "cancel" or subCmd == "stop" then
+        -- Cancel active pull timer
+        if ns.PullTimer and ns.PullTimer.active then
+            ns.PullTimer:Cancel()
+            self:InfoMessage("Pull timer cancelled")
+        else
+            self:ErrorMessage("No pull timer is active")
+        end
+    else
+        -- Start pull timer (default 10 seconds)
+        local seconds = tonumber(args[2]) or 10
+        
+        if seconds < 1 or seconds > 60 then
+            self:ErrorMessage("Pull timer must be between 1-60 seconds")
+            return
+        end
+        
+        -- Check if we're in a configured dungeon
+        local inInstance, instanceType = IsInInstance()
+        if not (inInstance and instanceType == "party") then
+            self:ErrorMessage("You must be in a dungeon to use pull timer")
+            return
+        end
+        
+        local _, _, _, _, _, _, _, dungeonID = GetInstanceInfo()
+        if not ns.Dungeons or not ns.Dungeons[dungeonID] then
+            self:ErrorMessage("Pull timer only works in configured dungeons")
+            return
+        end
+        
+        -- Don't start if timer is already running
+        if ns.TimerUI and ns.TimerUI.sessionData.running then
+            self:ErrorMessage("Timer is already running - use /l30 reset first")
+            return
+        end
+        
+        -- Start the pull timer
+        if ns.PullTimer then
+            ns.PullTimer:Start(seconds)
+        else
+            self:ErrorMessage("Pull timer not initialized")
+        end
     end
 end
 
@@ -362,8 +417,8 @@ function L30:BuildRunDataFromSession(session)
                 if name then
                     table.insert(players, {
                         name = name,
-                        itemLevel = 0,  -- Can't get remote ilvl easily
-                        mobsKilled = 0,  -- Would need sync
+                        itemLevel = 0,
+                        mobsKilled = 0,
                         deaths = deathCounts[name] or 0
                     })
                 end
@@ -413,7 +468,7 @@ function L30:BuildRunDataFromHistory(historyEntry)
     
     return {
         dungeonName = dungeonName,
-        difficulty = "Normal",  -- TODO: Store in history
+        difficulty = "Normal",
         startTime = date("!%Y-%m-%dT%H:%M:%SZ", startTime),
         endTime = date("!%Y-%m-%dT%H:%M:%SZ", endTime),
         durationSeconds = historyEntry.totalTime or 0,
@@ -438,7 +493,6 @@ if not StaticPopupDialogs["L30_ENCRYPTED_EXPORT"] then
         hasEditBox = 1,
         editBoxWidth = 350,
         OnShow = function(self, data)
-            -- Use uppercase EditBox (WoW StaticPopup convention)
             local editBox = self.EditBox or self.editBox
             if not editBox then return end
             
@@ -447,26 +501,21 @@ if not StaticPopupDialogs["L30_ENCRYPTED_EXPORT"] then
             editBox:SetFocus()
             editBox:SetAutoFocus(true)
             
-            -- Track if Ctrl was pressed
             self.ctrlPressed = false
             
-            -- Monitor for Ctrl key
             editBox:SetScript("OnKeyDown", function(eb, key)
                 if key == "LCTRL" or key == "RCTRL" then
                     self.ctrlPressed = true
                 end
             end)
             
-            -- Monitor for key up - if Ctrl+C was pressed, close on next key
             editBox:SetScript("OnKeyUp", function(eb, key)
-                -- If C was released and Ctrl was pressed, close the window
                 if key == "C" and self.ctrlPressed then
                     C_Timer.After(0.05, function()
                         self:Hide()
                     end)
                 end
                 
-                -- Reset Ctrl tracking when Ctrl is released
                 if key == "LCTRL" or key == "RCTRL" then
                     self.ctrlPressed = false
                 end
@@ -476,7 +525,6 @@ if not StaticPopupDialogs["L30_ENCRYPTED_EXPORT"] then
             self:GetParent():Hide()
         end,
         OnHide = function(self)
-            -- Clean up scripts
             local editBox = self.EditBox or self.editBox
             if editBox then
                 editBox:SetScript("OnKeyDown", nil)
@@ -501,6 +549,9 @@ function L30:ShowHelpText()
     self:InfoMessage("|cFF00FF00=== Legacy30 Commands ===|r")
     self:InfoMessage(" ")
     self:InfoMessage("|cFFFFFF00Timer Control:|r")
+    self:InfoMessage("  |cFF00FFFF/l30 pull|r - Start 10 second pull timer")
+    self:InfoMessage("  |cFF00FFFF/l30 pull <seconds>|r - Custom pull timer (1-60s)")
+    self:InfoMessage("  |cFF00FFFF/l30 pull cancel|r - Cancel active pull timer")
     self:InfoMessage("  |cFF00FFFF/l30 start|r - Manually start the timer")
     self:InfoMessage("  |cFF00FFFF/l30 stop|r - Stop the current timer")
     self:InfoMessage("  |cFF00FFFF/l30 reset|r - Reset timer to 0 and clear data")
@@ -710,6 +761,5 @@ function L30:SerializeTable(tbl)
 end
 
 function L30:SearchItemDatabase(database)
-    -- Placeholder for item database search functionality
     self:InfoMessage("Item database search not yet implemented")
 end
