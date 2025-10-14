@@ -20,13 +20,14 @@ function MinimapBtn:Initialize()
     -- Icon texture
     button.icon = button:CreateTexture(nil, "BACKGROUND")
     button.icon:SetSize(20, 20)
-    button.icon:SetPoint("CENTER", 0, 0)
+    button.icon:SetPoint("CENTER", 1, 1)  -- Offset right 1, up 1
     button.icon:SetTexture(ICON_PATH)
+    button.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)  -- Crop more from edges
     
     -- Border texture
     button.border = button:CreateTexture(nil, "OVERLAY")
-    button.border:SetSize(52, 52)
-    button.border:SetPoint("CENTER", 0, 0)
+    button.border:SetSize(53, 53)
+    button.border:SetPoint("TOPLEFT", 0, 0)
     button.border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
     
     -- Highlight texture
