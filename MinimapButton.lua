@@ -7,8 +7,8 @@ local L30 = ns.Core
 ns.MinimapButton = {}
 local MinimapBtn = ns.MinimapButton
 
--- Button configuration
-local ICON_PATH = "Interface\\Icons\\INV_Misc_PocketWatch_01"
+-- Button configuration - Using custom logo
+local ICON_PATH = "Interface\\AddOns\\Legacy30\\logo"
 
 function MinimapBtn:Initialize()
     -- Create the minimap button
@@ -20,9 +20,9 @@ function MinimapBtn:Initialize()
     -- Icon texture
     button.icon = button:CreateTexture(nil, "BACKGROUND")
     button.icon:SetSize(20, 20)
-    button.icon:SetPoint("CENTER", 1, 1)  -- Offset right 1, up 1
+    button.icon:SetPoint("CENTER", 1, 1)
     button.icon:SetTexture(ICON_PATH)
-    button.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)  -- Crop more from edges
+    button.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
     
     -- Border texture
     button.border = button:CreateTexture(nil, "OVERLAY")
@@ -283,7 +283,7 @@ end
 -- Load button position
 function MinimapBtn:LoadPosition()
     if not L30.Addon.database then
-        self:SetPosition(225) -- Default position
+        self:SetPosition(225)
         return
     end
     
@@ -291,7 +291,7 @@ function MinimapBtn:LoadPosition()
     if saved and saved.angle then
         self:SetPosition(saved.angle)
     else
-        self:SetPosition(225) -- Default position (bottom-left)
+        self:SetPosition(225)
     end
 end
 

@@ -1,8 +1,9 @@
 ## Interface: 110002
 ## Version: 1.0.0
 ## Title: Legacy30 - Dungeon Speedrun Timer
-## Notes: Original speedrun timer for legacy dungeons with validation
-## Author: YourName
+## Notes: Original speedrun timer for legacy 30 dungeons Tournament
+## Author: Fate
+## IconTexture: Interface\AddOns\Legacy30\logo
 ## SavedVariables: Legacy30DB, L30_ExportState
 ## OptionalDeps: Ace3, AllTheThings
 ## X-Embeds: Ace3
