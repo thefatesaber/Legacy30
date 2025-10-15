@@ -66,7 +66,6 @@ Timer and export tool for Legacy Thirty tournament runs. Shows a live dungeon ti
 - Encryption: RC4 stream cipher.
 - Encoding: Base64.
 - Nonce: 6 ASCII characters included in the header.
-- A simple `decoder.html` is included in the repo to verify decryption outside the game.
 
 Security note: the export is obfuscated to discourage casual tampering. It is not strong cryptography. Do not reuse any secret key you care about.
 
@@ -136,7 +135,6 @@ Legacy30/
     ValidationFrame.lua
   ItemDatabase.lua
   Sync.lua
-  decoder.html
   Legacy30.toc
 ```
 
