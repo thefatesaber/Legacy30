@@ -20,9 +20,9 @@ ns.MobThresholds = {
     [389] = 46,   -- This is Ragefire Chasm
     [129] = 46,   -- This is Razorfen Downs
     [47] = 62,    -- This is Razorfen Kraul
-    [1001] = 46,  -- This is Scarlet Halls
+    [1001] = 83,  -- This is Scarlet Halls
     [1004] = 72,  -- This is Scarlet Monastery
-    [1007] = 94,  -- This is Scholomance
+    [1007] = 90,  -- This is Scholomance
     [33] = 100,   -- This is Shadowfang Keep
     [329] = 118,  -- This is Stratholme
     [34] = 55,    -- This is The Stockade
@@ -49,7 +49,7 @@ ns.MobThresholds = {
     [619] = 126,  -- This is Ahn'kahet: The Old Kingdom
     [601] = 17,   -- This is Azjol-Nerub
     [600] = 57,   -- This is Drak'Tharon Keep
-    [604] = 49,   -- This is Gundrak
+    [604] = 159,   -- This is Gundrak
     [602] = 87,   -- This is Halls of Lightning
     [668] = 30,   -- This is Halls of Reflection
     [599] = 69,   -- This is Halls of Stone
@@ -102,7 +102,7 @@ ns.MobThresholds = {
     [1516] = 100, -- This is The Arcway
     [1493] = 90,  -- This is Vault of the Wardens
     [1763] = 110, -- This is Atal'Dazar
-    [1754] = 160, -- This is Freehold
+    [1754] = 166, -- This is Freehold
     [1762] = 100, -- This is Kings' Rest
     [2097] = 100, -- This is Operation: Mechagon
     [1864] = 212, -- This is Shrine of the Storm
@@ -561,6 +561,7 @@ ns.Dungeons = {
             { journal = 592, difficulty = 1978 }, -- Slad'ran
             { journal = 593, difficulty = 1983 }, -- Drakkari Colossus
             { journal = 594, difficulty = 1980 }, -- Moorabi
+            { journal = 595, difficulty = 1988 }, -- Eck the Ferocious (HARDMODE/OPTIONAL)
             { journal = 596, difficulty = 1981 }, -- Gal'darah
         }
     },
