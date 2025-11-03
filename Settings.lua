@@ -20,7 +20,7 @@ ns.MobThresholds = {
     [389] = 46,   -- This is Ragefire Chasm
     [129] = 46,   -- This is Razorfen Downs
     [47] = 62,    -- This is Razorfen Kraul
-    [1001] = 83,  -- This is Scarlet Halls
+    [1001] = 75,  -- This is Scarlet Halls
     [1004] = 72,  -- This is Scarlet Monastery
     [1007] = 90,  -- This is Scholomance
     [33] = 100,   -- This is Shadowfang Keep
@@ -1108,6 +1108,7 @@ ns.Dungeons = {
         journalID = 1001,
         encounters = {
             { journal = 2102, difficulty = 2093 }, -- Skycap'n Kragg
+			{ journal = 2102, difficulty = 2093 }, -- Skycap'n Kragg
             { journal = 2093, difficulty = 2094 }, -- Council o' Captains
             { journal = 2094, difficulty = 2095 }, -- Ring of Booty
             { journal = 2095, difficulty = 2096 }, -- Harlan Sweete

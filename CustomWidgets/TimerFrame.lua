@@ -266,8 +266,11 @@ function TimerWidget:UpdateDisplay()
     -- Update death counter
     self.frame.deathText:SetText(string.format("Deaths: %d", self.sessionData.deathCount))
     
-    -- Check for completion
-    if bossesKilled >= self.sessionData.totalBosses and self.sessionData.totalBosses > 0 then
+    -- Check for completion - BOTH bosses AND mobs must be complete
+    local allBossesDefeated = (bossesKilled >= self.sessionData.totalBosses and self.sessionData.totalBosses > 0)
+    local mobThresholdMet = (self.sessionData.mobCount >= maxMobs)
+    
+    if allBossesDefeated and mobThresholdMet then
         self:CompleteRun(elapsed)
     end
 end

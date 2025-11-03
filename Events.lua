@@ -101,8 +101,8 @@ function L30:GetBossData(dungeonID)
         
         -- Check if boss is defeated using multiple methods
         -- Priority: Manual tracking > Encounter Journal completion
+        -- NOTE: Only check difficulty ID to avoid collisions (Blizzard reuses journal IDs across bosses)
         local isDefeated = ns.DefeatedBosses[encounter.difficulty] or 
-                          ns.DefeatedBosses[encounter.journal] or
                           C_EncounterJournal.IsEncounterComplete(encounter.journal) or
                           false
         
