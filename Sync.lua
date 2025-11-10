@@ -12,7 +12,8 @@ ns.Protocol = {
     CREATURE_SYNC = "L30_MOBKILL",
     TIMER_START = "L30_START",
     BOSS_KILL = "L30_BOSS",
-    DEATH_SYNC = "L30_DEATH"
+    DEATH_SYNC = "L30_DEATH",
+    PULL_TIMER = "L30_PULL"  -- NEW: Pull timer synchronization
 }
 
 -- IMPORTANT: Define OnCommReceived BEFORE registering it
@@ -50,6 +51,8 @@ function L30.Addon:OnCommReceived(prefix, payload, distribution, sender)
         L30:OnSyncBossKill(data, sender)
     elseif prefix == ns.Protocol.DEATH_SYNC then
         L30:OnSyncDeath(data, sender)
+    elseif prefix == ns.Protocol.PULL_TIMER then
+        L30:OnSyncPullTimer(data, sender)  -- NEW: Handle pull timer sync
     end
 end
 
@@ -163,5 +166,53 @@ end
 function L30:BroadcastDeath(playerName)
     if IsInGroup() then
         self:BroadcastMessage(ns.Protocol.DEATH_SYNC, playerName)
+    end
+end
+
+-- ============================================================================
+-- NEW: PULL TIMER SYNCHRONIZATION
+-- ============================================================================
+
+-- Handle synced pull timer from party member
+function L30:OnSyncPullTimer(data, sender)
+    local seconds = data.seconds
+    
+    if not seconds or seconds < 1 or seconds > 60 then
+        return
+    end
+    
+    -- Check if we're in a configured dungeon
+    local inInstance, instanceType = IsInInstance()
+    if not (inInstance and instanceType == "party") then
+        return
+    end
+    
+    local _, _, _, _, _, _, _, dungeonID = GetInstanceInfo()
+    if not ns.Dungeons or not ns.Dungeons[dungeonID] then
+        return
+    end
+    
+    -- Don't start if timer is already running
+    if ns.TimerUI and ns.TimerUI.sessionData.running then
+        return
+    end
+    
+    -- Start the pull timer
+    if ns.PullTimer then
+        ns.PullTimer:Start(seconds)
+        self:InfoMessage("Pull timer started by %s: %d seconds", sender, seconds)
+    end
+end
+
+-- Broadcast pull timer to the party
+function L30:BroadcastPullTimer(seconds)
+    if IsInGroup() then
+        self:BroadcastMessage(ns.Protocol.PULL_TIMER, {
+            seconds = seconds
+        })
+        
+        -- Also send a chat message
+        local channel = IsInRaid() and "RAID" or "PARTY"
+        SendChatMessage(string.format("Pull timer: %d seconds!", seconds), channel)
     end
 end
