@@ -281,8 +281,13 @@ function L30:HandlePullCommand(args)
         
         -- Start the pull timer
         if ns.PullTimer then
-            ns.PullTimer:Start(seconds)
-        else
+			ns.PullTimer:Start(seconds)
+			
+			-- Broadcast to party members
+			if IsInGroup() and L30.BroadcastPullTimer then
+				L30:BroadcastPullTimer(seconds)
+			end
+		else
             self:ErrorMessage("Pull timer not initialized")
         end
     end
