@@ -132,6 +132,12 @@ function L30.Addon:OnEnable()
         self:RegisterComm(channel)
     end
     
+    -- ENCOUNTER_END and BOSS_KILL are safe to register via AceEvent here.
+    -- COMBAT_LOG_EVENT_UNFILTERED is handled separately via a raw frame in Events.lua
+    -- because WoW Midnight forbids registering it through AceEvent's internal frame.
+    self:RegisterEvent("ENCOUNTER_END")
+    self:RegisterEvent("BOSS_KILL")
+
     -- Apply UI settings and ensure timer is created
     L30:ApplyUISettings()
     

@@ -595,8 +595,8 @@ end
 -- ============================================================================
 
 function L30:ExportInstanceData()
-    if not IsAddOnLoaded("Blizzard_EncounterJournal") then
-        UIParentLoadAddOn("Blizzard_EncounterJournal")
+    if not C_AddOns.IsAddOnLoaded("Blizzard_EncounterJournal") then
+        C_AddOns.LoadAddOn("Blizzard_EncounterJournal")
     end
     
     local journal = EncounterJournal

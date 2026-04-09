@@ -234,18 +234,14 @@ function TimerWidget:UpdateDisplay()
     end
     
     local percentage = math.min(100, (self.sessionData.mobCount / maxMobs) * 100)
-    
-    -- Format mob counter display
+
     if self.sessionData.mobCount >= maxMobs then
         self.frame.mobText:SetText("Mobs: COMPLETE")
-        self.frame.mobText:SetTextColor(0, 1, 0, 1) -- Green for complete
+        self.frame.mobText:SetTextColor(0, 1, 0, 1)
     else
-        self.frame.mobText:SetText(string.format("Mobs: %d / %d (%.0f%%)", 
-            self.sessionData.mobCount,
-            maxMobs,
-            percentage
-        ))
-        self.frame.mobText:SetTextColor(1, 0, 0, 1) -- Red for in progress
+        self.frame.mobText:SetText(string.format("Mobs: %d / %d (%.0f%%)",
+            self.sessionData.mobCount, maxMobs, percentage))
+        self.frame.mobText:SetTextColor(1, 0, 0, 1)
     end
     
     -- Count defeated bosses from boss data
@@ -266,11 +262,11 @@ function TimerWidget:UpdateDisplay()
     -- Update death counter
     self.frame.deathText:SetText(string.format("Deaths: %d", self.sessionData.deathCount))
     
-    -- Check for completion - BOTH bosses AND mobs must be complete
+    -- WoW Midnight blocks unit tracking APIs so mob count cannot be reliably tracked.
+    -- Complete the run when all bosses are defeated.
     local allBossesDefeated = (bossesKilled >= self.sessionData.totalBosses and self.sessionData.totalBosses > 0)
-    local mobThresholdMet = (self.sessionData.mobCount >= maxMobs)
-    
-    if allBossesDefeated and mobThresholdMet then
+
+    if allBossesDefeated then
         self:CompleteRun(elapsed)
     end
 end

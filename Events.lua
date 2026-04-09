@@ -5,6 +5,60 @@ local L30 = ns.Core
 -- Track defeated bosses
 ns.DefeatedBosses = {}
 
+-- COMBAT_LOG_EVENT_UNFILTERED is blocked in WoW Midnight.
+-- UNIT_DIED fires but its unitID arg is a secret value that cannot be passed to unit APIs.
+-- Workaround: on every UNIT_DIED we scan our own hardcoded unit ID strings — those are
+-- literal strings (not secret), so UnitGUID("target") / UnitGUID("nameplate1") etc. work.
+-- WoW Midnight makes GUIDs secret values — they can't be used as table keys or
+-- converted to strings. Deduplication uses the unit slot name instead ("target",
+-- "nameplate3", etc.), which are our own literal strings and are never secret.
+-- A slot is cleared from the counted set once the unit no longer exists there,
+-- so a new mob on the same slot will be counted correctly.
+local countedSlots = {}
+
+local UNITS_TO_SCAN = { "target", "focus", "mouseover" }
+for i = 1, 40 do UNITS_TO_SCAN[#UNITS_TO_SCAN + 1] = "nameplate" .. i end
+
+local function ScanDeadEnemies()
+    if not (ns.TimerUI and ns.TimerUI.sessionData and ns.TimerUI.sessionData.running) then return end
+
+    -- Release slots whose units have since disappeared
+    for slot in pairs(countedSlots) do
+        if not UnitExists(slot) then
+            countedSlots[slot] = nil
+        end
+    end
+
+    for _, unit in ipairs(UNITS_TO_SCAN) do
+        if not countedSlots[unit]
+           and UnitExists(unit)
+           and UnitIsDeadOrGhost(unit)
+           and not UnitIsPlayer(unit)
+           and not UnitIsFriend("player", unit) then
+            countedSlots[unit] = true
+            ns.TimerUI.sessionData.mobCount = ns.TimerUI.sessionData.mobCount + 1
+        end
+    end
+end
+
+local combatFrame = CreateFrame("Frame")
+combatFrame:RegisterEvent("UNIT_DIED")
+combatFrame:RegisterEvent("PLAYER_DEAD")
+combatFrame:SetScript("OnEvent", function(self, event)
+    if event == "UNIT_DIED" then
+        ScanDeadEnemies()
+    elseif event == "PLAYER_DEAD" then
+        -- Local player death — PLAYER_DEAD needs no unit arg
+        if not (ns.TimerUI and ns.TimerUI.sessionData and ns.TimerUI.sessionData.running) then return end
+        ns.TimerUI:IncrementDeathCount()
+        local name = UnitName("player") or "Player"
+        L30:InfoMessage("%s died", name)
+        if IsInGroup() and L30.BroadcastDeath then
+            L30:BroadcastDeath(name)
+        end
+    end
+end)
+
 -- Player enters world
 function L30.Addon:PLAYER_ENTERING_WORLD(_, isLogin, isReload)
     L30:CheckZone()
@@ -49,15 +103,13 @@ function L30:CheckZone()
             end
         else
             L30:InfoMessage("Dungeon ID %d NOT configured in Settings.lua - timer hidden", dungeonID or 0)
-            -- Unregister combat log when not in configured dungeon
-            L30.Addon:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+            -- (combat events remain registered; handlers guard on sessionData.running)
         end
     else
-        -- Not in dungeon, hide timer and unregister combat log
+        -- Not in dungeon, hide timer
         if ns.TimerUI and ns.TimerUI.frame then
             ns.TimerUI.frame:Hide()
         end
-        L30.Addon:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
         
         -- Cancel pull timer if leaving instance
         if ns.PullTimer and ns.PullTimer.active then
@@ -196,14 +248,6 @@ function L30:AttemptTimerStart(startTimestamp)
         L30:InfoMessage("Timer visible and running")
     end
     
-    -- Register combat log events
-    L30.Addon:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
-    L30:InfoMessage("Combat log tracking enabled")
-    
-    -- Register encounter events for boss detection
-    L30.Addon:RegisterEvent("ENCOUNTER_END")
-    L30.Addon:RegisterEvent("BOSS_KILL")
-    
     -- Start tracking boss updates every 2 seconds
     C_Timer.NewTicker(2, function()
         if ns.TimerUI.sessionData.running then
@@ -225,11 +269,6 @@ end
 -- Run completion
 function L30:OnRunComplete(sessionInfo, totalTime)
     self:SaveRecord(sessionInfo.dungeonID, nil, totalTime, sessionInfo)
-    
-    -- Unregister combat log when run completes
-    L30.Addon:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
-    L30.Addon:UnregisterEvent("ENCOUNTER_END")
-    L30.Addon:UnregisterEvent("BOSS_KILL")
 end
 
 -- Boss defeat timing
@@ -239,6 +278,7 @@ end
 
 -- Handle ENCOUNTER_END event (fired when boss is defeated)
 function L30.Addon:ENCOUNTER_END(_, encounterID, encounterName, difficultyID, groupSize, success)
+    if not (ns.TimerUI and ns.TimerUI.sessionData.running) then return end
     if success == 1 then
         L30:InfoMessage("Boss defeated: %s (Encounter ID: %d)", encounterName, encounterID)
         
@@ -268,50 +308,12 @@ end
 
 -- Handle BOSS_KILL event (alternative boss detection)
 function L30.Addon:BOSS_KILL(_, encounterID, encounterName)
+    if not (ns.TimerUI and ns.TimerUI.sessionData.running) then return end
     L30:InfoMessage("Boss killed: %s (ID: %d)", encounterName, encounterID)
     ns.DefeatedBosses[encounterID] = true
     L30:OnBossProgress()
 end
 
--- Combat log events
-function L30.Addon:COMBAT_LOG_EVENT_UNFILTERED()
-    local timestamp, subevent, _, sourceGUID, sourceName, sourceFlags, _, 
-          destGUID, destName, destFlags = CombatLogGetCurrentEventInfo()
-    
-    if subevent == "UNIT_DIED" then
-        -- Check if it's a player death (party member)
-        local isPlayer = bit.band(destFlags, COMBATLOG_OBJECT_TYPE_PLAYER) > 0
-        
-        if isPlayer then
-            -- Track player death
-            if ns.TimerUI and ns.TimerUI.sessionData.running and ns.TimerUI.IncrementDeathCount then
-                ns.TimerUI:IncrementDeathCount()
-                L30:InfoMessage("%s died", destName or "Player")
-                
-                -- Broadcast death to party if function exists
-                if IsInGroup() and L30.BroadcastDeath then
-                    L30:BroadcastDeath(destName)
-                end
-            end
-        else
-            -- Check if it's an enemy NPC
-            local isEnemy = not (bit.band(destFlags, COMBATLOG_OBJECT_REACTION_FRIENDLY) > 0)
-            local isNPC = bit.band(destFlags, COMBATLOG_OBJECT_TYPE_NPC) > 0
-            
-            if isEnemy and isNPC then
-                -- Always track locally first
-                if ns.TimerUI and ns.TimerUI.IncrementCreatureCount then
-                    ns.TimerUI:IncrementCreatureCount(destGUID)
-                end
-                
-                -- Broadcast to party members if function exists
-                if IsInGroup() and L30.BroadcastCreatureKill then
-                    L30:BroadcastCreatureKill(destGUID)
-                end
-            end
-        end
-    end
-end
 
 -- Stop the current timer
 function L30:StopTimer()
@@ -321,12 +323,6 @@ function L30:StopTimer()
     end
     
     ns.TimerUI.sessionData.running = false
-    
-    -- Unregister combat events
-    L30.Addon:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
-    L30.Addon:UnregisterEvent("ENCOUNTER_END")
-    L30.Addon:UnregisterEvent("BOSS_KILL")
-    
     self:InfoMessage("Timer stopped")
 end
 

@@ -108,163 +108,56 @@ function MinimapBtn:OnLeftClick()
     end
 end
 
--- Right click: Show dropdown menu
+-- Right click: Show context menu
 function MinimapBtn:OnRightClick()
-    -- Create dropdown menu frame if it doesn't exist
-    if not self.menuFrame then
-        self.menuFrame = CreateFrame("Frame", "Legacy30MinimapDropDown", UIParent, "UIDropDownMenuTemplate")
-    end
-    
-    -- Initialize menu function
-    local function InitializeMenu(self, level)
-        level = level or 1
-        
-        local info = UIDropDownMenu_CreateInfo()
-        
-        if level == 1 then
-            -- Title
-            info.text = "Legacy30"
-            info.isTitle = true
-            info.notCheckable = true
-            UIDropDownMenu_AddButton(info, level)
-            
-            -- Start Timer
-            info = UIDropDownMenu_CreateInfo()
-            info.text = "Start Timer"
-            info.func = function()
-                L30:AttemptTimerStart(GetServerTime())
+    MenuUtil.CreateContextMenu(self.button, function(ownerRegion, rootDescription)
+        rootDescription:CreateTitle("Legacy30")
+
+        rootDescription:CreateButton("Start Timer", function()
+            L30:AttemptTimerStart(GetServerTime())
+        end)
+        rootDescription:CreateButton("Stop Timer", function()
+            L30:StopTimer()
+        end)
+        rootDescription:CreateButton("Reset Timer", function()
+            L30:ResetTimer()
+        end)
+        rootDescription:CreateButton("Restart Timer", function()
+            L30:RestartTimer()
+        end)
+
+        rootDescription:CreateDivider()
+
+        rootDescription:CreateButton("Show Timer Frame", function()
+            if ns.TimerUI and ns.TimerUI.frame then
+                ns.TimerUI.frame:Show()
             end
-            info.notCheckable = true
-            UIDropDownMenu_AddButton(info, level)
-            
-            -- Stop Timer
-            info = UIDropDownMenu_CreateInfo()
-            info.text = "Stop Timer"
-            info.func = function()
-                L30:StopTimer()
+        end)
+        rootDescription:CreateButton("Hide Timer Frame", function()
+            if ns.TimerUI and ns.TimerUI.frame then
+                ns.TimerUI.frame:Hide()
             end
-            info.notCheckable = true
-            UIDropDownMenu_AddButton(info, level)
-            
-            -- Reset Timer
-            info = UIDropDownMenu_CreateInfo()
-            info.text = "Reset Timer"
-            info.func = function()
-                L30:ResetTimer()
-            end
-            info.notCheckable = true
-            UIDropDownMenu_AddButton(info, level)
-            
-            -- Restart Timer
-            info = UIDropDownMenu_CreateInfo()
-            info.text = "Restart Timer"
-            info.func = function()
-                L30:RestartTimer()
-            end
-            info.notCheckable = true
-            UIDropDownMenu_AddButton(info, level)
-            
-            -- Spacer
-            info = UIDropDownMenu_CreateInfo()
-            info.text = " "
-            info.isTitle = true
-            info.notCheckable = true
-            UIDropDownMenu_AddButton(info, level)
-            
-            -- Show Timer Frame
-            info = UIDropDownMenu_CreateInfo()
-            info.text = "Show Timer Frame"
-            info.func = function()
-                if ns.TimerUI and ns.TimerUI.frame then
-                    ns.TimerUI.frame:Show()
-                end
-            end
-            info.notCheckable = true
-            UIDropDownMenu_AddButton(info, level)
-            
-            -- Hide Timer Frame
-            info = UIDropDownMenu_CreateInfo()
-            info.text = "Hide Timer Frame"
-            info.func = function()
-                if ns.TimerUI and ns.TimerUI.frame then
-                    ns.TimerUI.frame:Hide()
-                end
-            end
-            info.notCheckable = true
-            UIDropDownMenu_AddButton(info, level)
-            
-            -- Lock Frames
-            info = UIDropDownMenu_CreateInfo()
-            info.text = "Lock Frames"
-            info.func = function()
-                ns.FramesLocked = true
-                if ns.TimerUI then
-                    ns.TimerUI:SetDraggable(false)
-                end
-                L30:InfoMessage("Frames locked")
-            end
-            info.notCheckable = true
-            UIDropDownMenu_AddButton(info, level)
-            
-            -- Unlock Frames
-            info = UIDropDownMenu_CreateInfo()
-            info.text = "Unlock Frames"
-            info.func = function()
-                ns.FramesLocked = false
-                if ns.TimerUI then
-                    ns.TimerUI:SetDraggable(true)
-                end
-                L30:InfoMessage("Frames unlocked")
-            end
-            info.notCheckable = true
-            UIDropDownMenu_AddButton(info, level)
-            
-            -- Spacer
-            info = UIDropDownMenu_CreateInfo()
-            info.text = " "
-            info.isTitle = true
-            info.notCheckable = true
-            UIDropDownMenu_AddButton(info, level)
-            
-            -- Export Run
-            info = UIDropDownMenu_CreateInfo()
-            info.text = "Export Run"
-            info.func = function()
-                L30:HandleExportRunCommand({})
-            end
-            info.notCheckable = true
-            UIDropDownMenu_AddButton(info, level)
-            
-            -- Set Encryption Key
-            info = UIDropDownMenu_CreateInfo()
-            info.text = "Set Encryption Key"
-            info.func = function()
-                StaticPopup_Show("L30_SET_KEY")
-            end
-            info.notCheckable = true
-            UIDropDownMenu_AddButton(info, level)
-            
-            -- Spacer
-            info = UIDropDownMenu_CreateInfo()
-            info.text = " "
-            info.isTitle = true
-            info.notCheckable = true
-            UIDropDownMenu_AddButton(info, level)
-            
-            -- Close
-            info = UIDropDownMenu_CreateInfo()
-            info.text = "Close"
-            info.func = function()
-                CloseDropDownMenus()
-            end
-            info.notCheckable = true
-            UIDropDownMenu_AddButton(info, level)
-        end
-    end
-    
-    -- Initialize and toggle the menu
-    UIDropDownMenu_Initialize(self.menuFrame, InitializeMenu, "MENU")
-    ToggleDropDownMenu(1, nil, self.menuFrame, "cursor", 0, 0)
+        end)
+        rootDescription:CreateButton("Lock Frames", function()
+            ns.FramesLocked = true
+            if ns.TimerUI then ns.TimerUI:SetDraggable(false) end
+            L30:InfoMessage("Frames locked")
+        end)
+        rootDescription:CreateButton("Unlock Frames", function()
+            ns.FramesLocked = false
+            if ns.TimerUI then ns.TimerUI:SetDraggable(true) end
+            L30:InfoMessage("Frames unlocked")
+        end)
+
+        rootDescription:CreateDivider()
+
+        rootDescription:CreateButton("Export Run", function()
+            L30:HandleExportRunCommand({})
+        end)
+        rootDescription:CreateButton("Set Encryption Key", function()
+            StaticPopup_Show("L30_SET_KEY")
+        end)
+    end)
 end
 
 -- Save button position

@@ -1,3 +1,20 @@
+2026-04-08
+Bumped version to 1.1.0 and updated interface number to 120001 for WoW Midnight compatibility.
+
+Replaced deprecated UIDropDownMenuTemplate and all UIDropDownMenu_* / ToggleDropDownMenu calls in the minimap right-click menu with the new MenuUtil.CreateContextMenu API, which is required in WoW Midnight.
+
+Replaced removed IsAddOnLoaded and UIParentLoadAddOn calls in the instance data export with C_AddOns.IsAddOnLoaded and C_AddOns.LoadAddOn.
+
+Fixed ADDON_ACTION_FORBIDDEN errors caused by registering COMBAT_LOG_EVENT_UNFILTERED through AceEvent. Moved ENCOUNTER_END and BOSS_KILL registration to OnEnable and removed all RegisterEvent / UnregisterEvent calls for combat events from AttemptTimerStart, StopTimer, OnRunComplete, and CheckZone. Added running guards at the top of all three handlers.
+
+Replaced COMBAT_LOG_EVENT_UNFILTERED mob and death tracking entirely, as WoW Midnight forbids addon frames from registering this event regardless of timing or frame type.
+
+Death tracking now uses PLAYER_DEAD for the local player (no unit argument required). Party member deaths are received via the existing sync broadcast and now correctly increment the death counter on receiving clients.
+
+Mob kill tracking now uses UNIT_DIED combined with a scan of known unit slot strings (target, focus, mouseover, nameplate1-nameplate40). Because WoW Midnight marks unit GUIDs as secret values that cannot be used as table keys or converted to strings, deduplication is done by unit slot name instead. A slot is cleared from the counted set once UnitExists returns false for it, so a new mob on the same slot is counted correctly.
+
+Run completion now triggers when all bosses are defeated. The mob threshold gate was removed because mob tracking coverage is limited to visible nameplates and targeted units under WoW Midnight's unit API restrictions.
+
 2025-11-10
 Added a pull timer broadcast so that when the timer is started it is also sent to the group. Party and raid members now receive the countdown and start their timer at the same time.
 
